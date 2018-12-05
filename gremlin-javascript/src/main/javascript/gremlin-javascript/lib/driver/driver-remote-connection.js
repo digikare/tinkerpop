@@ -200,6 +200,7 @@ class DriverRemoteConnection extends RemoteConnection {
   }
 
   _handleError(err) {
+    this._cleanupWebsocket();
     switch (err.code) {
       case 'ECONNREFUSED':
         this._reconnect(err);
@@ -215,12 +216,9 @@ class DriverRemoteConnection extends RemoteConnection {
 
     switch (e.code) {
       case 1000: // close normal
-        // resolve the promise
         if (this._closeCallback) {
           this._closeCallback();
         }
-        // remove _openPromise
-        this._openPromise = null;
         break;
       default: // not close normally, reconnect
         if (this.options.autoReconnect !== false) {
@@ -311,8 +309,6 @@ class DriverRemoteConnection extends RemoteConnection {
    * reconnect websocket
    */
   _reconnect() {
-    // reset all
-    this._cleanupWebsocket();
     setTimeout(() => {
       this.open();
     }, this._timeoutAutoReconnectionInterval)
