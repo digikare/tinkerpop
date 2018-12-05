@@ -36,6 +36,9 @@ const responseStatusCode = {
 };
 const defaultMimeType = 'application/vnd.gremlin-v2.0+json';
 
+const pingIntervalDelay = 60 * 1000;
+const pongTimeoutDelay = 30 * 1000;
+
 class DriverRemoteConnection extends RemoteConnection {
   /**
    * Creates a new instance of DriverRemoteConnection.
@@ -51,39 +54,43 @@ class DriverRemoteConnection extends RemoteConnection {
    * @param {GraphSONWriter} [options.writer] The writer to use.
    * @param {Authenticator} [options.authenticator] The authentication handler to use.
    * @param {Object} [options.headers] An associative array containing the additional header key/values for the initial request.
+   * @param {Boolean} [options.pingEnabled] Setup ping interval
+   * @param {Number} [options.pingInterval] Ping request interval if ping enabled
+   * @param {Number} [options.pongTimeout] Timeout of pong response after sending a ping
+   * @param {Boolean} [options.autoReconnect] Auto reconnect on timeout
+   * @param {Boolean} [options.connectOnStartup] Open websocket on startup
    * @constructor
    */
   constructor(url, options) {
     super(url);
-    options = options || {};
-    this._ws = new WebSocket(url, {
-      headers: options.headers,
-      ca: options.ca,
-      cert: options.cert,
-      pfx: options.pfx,
-      rejectUnauthorized: options.rejectUnauthorized
-    });
-    this._ws.on('open', () => {
-      this.isOpen = true;
-      if (this._openCallback) {
-        this._openCallback();
-      }
-    });
-    this._ws.on('message', data => this._handleMessage(data));
+    this.options = options || {};
     // A map containing the request id and the handler
     this._responseHandlers = {};
-    this._reader = options.reader || new serializer.GraphSONReader();
-    this._writer = options.writer || new serializer.GraphSONWriter();
+    this._reader = this.options.reader || new serializer.GraphSONReader();
+    this._writer = this.options.writer || new serializer.GraphSONWriter();
     this._openPromise = null;
     this._openCallback = null;
     this._closePromise = null;
-    const mimeType = options.mimeType || defaultMimeType;
+    this._closeCallback = null;
+    this._pingInterval = null;
+    this._pongTimeout = null;
+    const mimeType = this.options.mimeType || defaultMimeType;
     this._header = String.fromCharCode(mimeType.length) + mimeType;
     this.isOpen = false;
-    this.traversalSource = options.traversalSource || 'g';
+    this.traversalSource = this.options.traversalSource || 'g';
+
+    this._timeoutAutoReconnectionInterval = 500;
+
+    this._pingEnabled = this.options.pingEnabled === false ? false : true;
+    this._pingIntervalDelay = this.options.pingInterval && this.options.pingInterval > 0 ? this.options.pingInterval : pingIntervalDelay;
+    this._pongTimeoutDelay = this.options.pongTimeout && this.options.pongTimeout > 0 ? this.options.pongTimeout : pongTimeoutDelay;
 
     if (options.authenticator) {
       this._authenticator = options.authenticator;
+    }
+
+    if (this.options.connectOnStartup !== false) {
+      this.open();
     }
   }
 
@@ -92,18 +99,40 @@ class DriverRemoteConnection extends RemoteConnection {
    * @returns {Promise}
    */
   open() {
-    if (this._closePromise) {
-      return this._openPromise = Promise.reject(new Error('Connection has been closed'));
-    }
     if (this.isOpen) {
       return Promise.resolve();
     }
     if (this._openPromise) {
       return this._openPromise;
     }
+
+    this._ws = new WebSocket(this.url, {
+      headers: this.options.headers,
+      ca: this.options.ca,
+      cert: this.options.cert,
+      pfx: this.options.pfx,
+      rejectUnauthorized: this.options.rejectUnauthorized
+    });
+    this._ws.on('message', (data) => this._handleMessage(data));
+    this._ws.on('error', (err) => this._handleError(err));
+    this._ws.on('close', (e) => this._handleClose(e));
+
+    this._ws.on('pong', () => {
+      if (this._pongTimeout) {
+        clearTimeout(this._pongTimeout);
+        this._pongTimeout = null;
+      }
+    });
+
+    this._ws.on('ping', () => {
+      this._ws.pong();
+    });
     return this._openPromise = new Promise((resolve, reject) => {
-      // Set the callback that will be invoked once the WS is opened
-      this._openCallback = err => err ? reject(err) : resolve();
+      this._ws.on('open', () => {
+        this.isOpen = true;
+        this._pingHeartbeat();
+        resolve();
+      });
     });
   }
 
@@ -138,6 +167,67 @@ class DriverRemoteConnection extends RemoteConnection {
         'aliases': { 'g': this.traversalSource }
       }
     });
+  }
+
+  _pingHeartbeat() {
+
+    // if disabled
+    if (this._pingEnabled === false) {
+      return ;
+    }
+
+    if (this._pingInterval) {
+      clearTimeout(this._pingInterval);
+      this._pingInterval = null;
+    }
+
+    this._pingInterval = setInterval(() => {
+      if (this.isOpen === false) {
+        if (this._pingInterval) {
+          clearInterval(this._pingInterval);
+          this._pingInterval = null;
+        }
+        return ;
+      }
+      // setup timeout for pong
+      this._pongTimeout = setTimeout(() => {
+        this._ws.terminate();
+      }, this._pongTimeoutDelay);
+
+      this._ws.ping();
+
+    }, this._pingIntervalDelay);
+  }
+
+  _handleError(err) {
+    switch (err.code) {
+      case 'ECONNREFUSED':
+        this._reconnect(err);
+        break;
+      default:
+        throw err;
+        break;
+    }
+  }
+
+  _handleClose(e) {
+    this._cleanupWebsocket();
+
+    switch (e.code) {
+      case 1000: // close normal
+        // resolve the promise
+        if (this._closeCallback) {
+          this._closeCallback();
+        }
+        // remove _openPromise
+        this._openPromise = null;
+        break;
+      default: // not close normally, reconnect
+        if (this.options.autoReconnect !== false) {
+          this._reconnect(e);
+        }
+        break;
+    }
   }
 
   _handleMessage(data) {
@@ -200,6 +290,35 @@ class DriverRemoteConnection extends RemoteConnection {
   }
 
   /**
+   * clean websocket context
+   */
+  _cleanupWebsocket() {
+    if (this._pingInterval) {
+      clearInterval(this._pingInterval);
+    }
+    this._pingInterval = null;
+    if (this._pongTimeout) {
+      clearTimeout(this._pongTimeout);
+    }
+    this._pongTimeout = null;
+
+    this._ws.removeAllListeners();
+    this._openPromise = null;
+    this.isOpen = false;
+  }
+
+  /**
+   * reconnect websocket
+   */
+  _reconnect() {
+    // reset all
+    this._cleanupWebsocket();
+    setTimeout(() => {
+      this.open();
+    }, this._timeoutAutoReconnectionInterval)
+  }
+
+  /**
    * Clears the internal state containing the callback and result buffer of a given request.
    * @param requestId
    * @private
@@ -240,10 +359,7 @@ class DriverRemoteConnection extends RemoteConnection {
   close() {
     if (!this._closePromise) {
       this._closePromise = new Promise(resolve => {
-        this._ws.on('close', function () {
-          this.isOpen = false;
-          resolve();
-        });
+        this._closeCallback = resolve;
         this._ws.close();
       });
     }
