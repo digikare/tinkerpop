@@ -137,6 +137,8 @@ public abstract class AbstractGremlinProcessTest extends AbstractGremlinTest {
         for (T t : results) {
             if (t instanceof Map) {
                 assertThat("Checking map result existence: " + t, expectedResults.stream().filter(e -> e instanceof Map).anyMatch(e -> internalCheckMap((Map) e, (Map) t)), is(true));
+            } else if (t instanceof List) {
+                assertThat("Checking list result existence: " + t, expectedResults.stream().filter(e -> e instanceof List).anyMatch(e -> internalCheckList((List) e, (List) t)), is(true));
             } else {
                 assertThat("Checking result existence: " + t, expectedResults.contains(t), is(true));
             }
@@ -168,6 +170,18 @@ public abstract class AbstractGremlinProcessTest extends AbstractGremlinTest {
             assertEquals(expectedList.get(i).getKey(), actualList.get(i).getKey());
             assertEquals(expectedList.get(i).getValue(), actualList.get(i).getValue());
         }
+    }
+
+    private static <A> boolean internalCheckList(final List<A> expectedList, final List<A> actualList) {
+        if (expectedList.size() != actualList.size()) {
+            return false;
+        }
+        for (int i = 0; i < actualList.size(); i++) {
+            if (!actualList.get(i).equals(expectedList.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static <A, B> boolean internalCheckMap(final Map<A, B> expectedMap, final Map<A, B> actualMap) {

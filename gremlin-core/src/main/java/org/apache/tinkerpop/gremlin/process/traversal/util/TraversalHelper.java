@@ -40,6 +40,8 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.map.LabelStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MatchStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.PropertiesStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.PropertyMapStep;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.SelectOneStep;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.SelectStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.VertexStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.StartStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.BulkSet;
@@ -51,8 +53,8 @@ import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -127,6 +129,9 @@ public final class TraversalHelper {
                         state = 'e';
                 }
                 states.clear();
+                if (step instanceof SelectStep || step instanceof SelectOneStep) {
+                    states.add('u');
+                }
                 for (final Traversal.Admin<?, ?> local : ((TraversalParent) step).getGlobalChildren()) {
                     final char s = isLocalStarGraph(local, currState);
                     if ('x' == s) return 'x';
@@ -485,20 +490,6 @@ public final class TraversalHelper {
     }
 
     /**
-     * @deprecated As of release 3.2.3, not replaced - only used by {@link org.apache.tinkerpop.gremlin.process.traversal.step.map.GroupStepV3d0}.
-     */
-    @Deprecated
-    public static <S> void addToCollectionUnrollIterator(final Collection<S> collection, final S s, final long bulk) {
-        if (s instanceof Iterator) {
-            ((Iterator<S>) s).forEachRemaining(r -> addToCollection(collection, r, bulk));
-        } else if (s instanceof Iterable) {
-            ((Iterable<S>) s).forEach(r -> addToCollection(collection, r, bulk));
-        } else {
-            addToCollection(collection, s, bulk);
-        }
-    }
-
-    /**
      * Returns the name of <i>step</i> truncated to <i>maxLength</i>. An ellipses is appended when the name exceeds
      * <i>maxLength</i>.
      *
@@ -594,7 +585,7 @@ public final class TraversalHelper {
     }
 
     public static Set<Scoping.Variable> getVariableLocations(final Traversal.Admin<?, ?> traversal) {
-        return TraversalHelper.getVariableLocations(new HashSet<>(), traversal);
+        return TraversalHelper.getVariableLocations(EnumSet.noneOf(Scoping.Variable.class), traversal);
     }
 
     private static Set<Scoping.Variable> getVariableLocations(final Set<Scoping.Variable> variables, final Traversal.Admin<?, ?> traversal) {

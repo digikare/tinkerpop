@@ -119,7 +119,7 @@ public interface Scoping {
         ///
         final Path path = traverser.path();
         if (path.hasLabel(key))
-            return null == pop ? path.get(key) : path.get(pop, key);
+            return path.get(pop, key);
         ///
         throw new IllegalArgumentException("Neither the sideEffects, map, nor path has a " + key + "-key: " + this);
     }
@@ -134,7 +134,7 @@ public interface Scoping {
         ///
         final Path path = traverser.path();
         if (path.hasLabel(key))
-            return null == pop ? path.get(key) : path.get(pop, key);
+            return path.get(pop, key);
         ///
         return null;
     }

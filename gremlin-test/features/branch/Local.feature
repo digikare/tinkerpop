@@ -21,7 +21,7 @@ Feature: Step - local()
     Given the crew graph
     And the traversal of
       """
-      g.V().local(__.properties("location").order().by(T.value, Order.incr).range(0, 2)).value()
+      g.V().local(__.properties("location").order().by(T.value, Order.asc).range(0, 2)).value()
       """
     When iterated to list
     Then the result should be unordered
@@ -53,7 +53,7 @@ Feature: Step - local()
     Given the modern graph
     And the traversal of
       """
-      g.V().local(__.outE().count()) 
+      g.V().local(__.outE().count())
       """
     When iterated to list
     Then the result should be unordered

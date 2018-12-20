@@ -39,6 +39,7 @@ import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.util.AbstractThreadLocalTransaction;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
+import org.apache.tinkerpop.gremlin.structure.util.TransactionException;
 import org.apache.tinkerpop.gremlin.structure.util.wrapped.WrappedGraph;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.neo4j.tinkerpop.api.Neo4jFactory;
@@ -63,13 +64,7 @@ import java.util.stream.Stream;
  */
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_INTEGRATE)
-@Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_PERFORMANCE)
 @Graph.OptIn(Graph.OptIn.SUITE_PROCESS_STANDARD)
-@Graph.OptIn(Graph.OptIn.SUITE_PROCESS_PERFORMANCE)
-@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_PROCESS_STANDARD)
-@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_ENVIRONMENT)
-@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_ENVIRONMENT_INTEGRATE)
-@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_ENVIRONMENT_PERFORMANCE)
 @Graph.OptIn("org.apache.tinkerpop.gremlin.neo4j.NativeNeo4jSuite")
 public final class Neo4jGraph implements Graph, WrappedGraph<Neo4jGraphAPI> {
 

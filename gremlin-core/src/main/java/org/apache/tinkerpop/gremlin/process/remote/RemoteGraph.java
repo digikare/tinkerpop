@@ -68,14 +68,6 @@ import java.util.Iterator;
         method = "*",
         reason = "RemoteGraph does not support PartitionStrategy at this time")
 @Graph.OptOut(
-        test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.ReadOnlyStrategyProcessTest",
-        method = "*",
-        reason = "RemoteGraph does not support ReadOnlyStrategy at this time")
-@Graph.OptOut(
-        test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.SubgraphStrategyProcessTest",
-        method = "*",
-        reason = "RemoteGraph does not support SubgraphStrategy at this time")
-@Graph.OptOut(
         test = "org.apache.tinkerpop.gremlin.process.computer.ranking.pagerank.PageRankVertexProgramTest",
         method = "*",
         reason = "RemoteGraph does not support direct Graph.compute() access")
@@ -103,6 +95,10 @@ import java.util.Iterator;
         test = "org.apache.tinkerpop.gremlin.process.traversal.TraversalInterruptionComputerTest",
         method = "*",
         reason = "The interruption model in the test can't guarantee interruption at the right time with RemoteGraph.")
+@Graph.OptOut(
+        test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.StoreTest",
+        method = "g_withSideEffectXa_setX_V_both_name_storeXaX_capXaX",
+        reason = "This test returns BulkSet which isn't supported in GraphSON 3.0 until 3.4.0.")
 @Deprecated
 public class RemoteGraph implements Graph {
 

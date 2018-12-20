@@ -18,8 +18,8 @@
  */
 package org.apache.tinkerpop.gremlin.driver;
 
-import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0;
 import org.apache.commons.configuration.Configuration;
+import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV3d0;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
@@ -46,6 +46,11 @@ final class Settings {
      * all {@link #hosts}.
      */
     public int port = 8182;
+
+    /**
+     * The path to the Gremlin service which is defaulted to "/gremlin".
+     */
+    public String path = "/gremlin";
 
     /**
      * The list of hosts that the driver will connect to.
@@ -234,9 +239,6 @@ final class Settings {
             if (connectionPoolConf.containsKey("reconnectInterval"))
                 cpSettings.reconnectInterval = connectionPoolConf.getInt("reconnectInterval");
 
-            if (connectionPoolConf.containsKey("reconnectInitialDelay"))
-                cpSettings.reconnectInitialDelay = connectionPoolConf.getInt("reconnectInitialDelay");
-
             if (connectionPoolConf.containsKey("resultIterationBatchSize"))
                 cpSettings.resultIterationBatchSize = connectionPoolConf.getInt("resultIterationBatchSize");
 
@@ -398,15 +400,9 @@ final class Settings {
 
         /**
          * The amount of time in milliseconds to wait before trying to reconnect to a dead host. The default value is
-         * 1000. This interval occurs after the time specified by the {@link #reconnectInitialDelay}.
+         * 1000.
          */
         public int reconnectInterval = Connection.RECONNECT_INTERVAL;
-
-        /**
-         * The amount of time in milliseconds to wait before trying to reconnect to a dead host for the first time.
-         * The default value is 1000.
-         */
-        public int reconnectInitialDelay = Connection.RECONNECT_INITIAL_DELAY;
 
         /**
          * The override value for the size of the result batches to be returned from the server. This value is set to
@@ -425,22 +421,6 @@ final class Settings {
          * A valid Gremlin script that can be used to test remote operations.
          */
         public String validationRequest = "''";
-
-        /**
-         * @deprecated as of 3.1.1-incubating, and not replaced as this property was never implemented internally
-         * as the way to establish sessions
-         */
-        @Deprecated
-        public String sessionId = null;
-
-        /**
-         * @deprecated as of 3.1.1-incubating, and not replaced as this property was never implemented internally
-         * as the way to establish sessions
-         */
-        @Deprecated
-        public Optional<String> optionalSessionId() {
-            return Optional.ofNullable(sessionId);
-        }
     }
 
     public static class SerializerSettings {
@@ -448,7 +428,7 @@ final class Settings {
          * The fully qualified class name of the {@link MessageSerializer} that will be used to communicate with the
          * server. Note that the serializer configured on the client should be supported by the server configuration.
          */
-        public String className = GryoMessageSerializerV1d0.class.getCanonicalName();
+        public String className = GryoMessageSerializerV3d0.class.getCanonicalName();
 
         /**
          * The configuration for the specified serializer with the {@link #className}.

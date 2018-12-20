@@ -29,6 +29,7 @@ import java.lang.reflect.TypeVariable
 import java.lang.reflect.GenericArrayType
 
 def toCSharpTypeMap = ["Long": "long",
+                       "Double": "double",
                        "Integer": "int",
                        "String": "string",
                        "boolean": "bool",
@@ -39,6 +40,8 @@ def toCSharpTypeMap = ["Long": "long",
                        "Class[]": "Type[]",
                        "java.util.Map<java.lang.String, E2>": "IDictionary<string, E2>",
                        "java.util.Map<java.lang.String, B>": "IDictionary<string, E2>",
+                       "java.util.Map<java.lang.Object, E2>": "IDictionary<object, E2>",
+                       "java.util.Map<java.lang.Object, B>": "IDictionary<object, E2>",
                        "java.util.List<E>": "IList<E>",
                        "java.util.List<A>": "IList<E2>",
                        "java.util.Map<K, V>": "IDictionary<K, V>",
@@ -67,9 +70,11 @@ def methodsWithSpecificTypes = ["constant": useE2,
                                 "mean": useE2,
                                 "optional": useE2,
                                 "range": useE2,
+                                "skip": useE2,
                                 "sum": useE2,
                                 "tail": useE2,
-                                "unfold": useE2]                                                        
+                                "unfold": useE2,
+                                "valueMap": ["IDictionary<TKey, TValue>", "TKey, TValue"],]
 
 def getCSharpGenericTypeParam = { typeName ->
     def tParam = ""
@@ -204,24 +209,6 @@ def hasMethodNoGenericCounterPartInGraphTraversal = { method ->
     if (method.name.equals("fold")) {
         return parameterTypeNames.size() == 0
     }
-    if (method.name.equals("limit")) {
-        if (parameterTypeNames.size() == 1) {
-            return parameterTypeNames[0].equals("long")
-        }
-    }
-    if (method.name.equals("range")) {
-        if (parameterTypeNames.size() == 2) {
-            return parameterTypeNames[0].equals("long") && parameterTypeNames[1].equals("long")
-        }
-    }
-    if (method.name.equals("tail")) {
-        if (parameterTypeNames.size() == 0) {
-            return true
-        }
-        if (parameterTypeNames.size() == 1) {
-            return parameterTypeNames[0].equals("long")
-        }
-    }
     return false
 }
 
@@ -244,7 +231,6 @@ def binding = ["pmethods": P.class.getMethods().
                         findAll { GraphTraversalSource.class.equals(it.returnType) }.
                         findAll {
                             !it.name.equals("clone") &&
-                                    !it.name.equals(TraversalSource.Symbols.withBindings) &&
                                     !it.name.equals(TraversalSource.Symbols.withRemote) &&
                                     !it.name.equals(TraversalSource.Symbols.withComputer)
                         }.
@@ -282,6 +268,11 @@ def binding = ["pmethods": P.class.getMethods().
                             def t1 = toCSharpType(typeNames[0])
                             def t2 = toCSharpType(typeNames[1])
                             def tParam = getCSharpGenericTypeParam(t2)
+                            def specificTypes = methodsWithSpecificTypes.get(javaMethod.name)
+                            if (specificTypes) {
+                                t2 = specificTypes[0]
+                                tParam = specificTypes.size() > 1 ? "<" + specificTypes[1] + ">" : ""
+                            }
                             def parameters = getCSharpParamString(javaMethod, true)
                             def paramNames = getParamNames(javaMethod.parameters)
                             def isArgsCastNecessary = isParamsArgCastNecessary(parameters)
@@ -328,14 +319,6 @@ def pTemplate = engine.createTemplate(new File("${projectBaseDir}/glv/P.template
 def pFile = new File("${projectBaseDir}/src/Gremlin.Net/Process/Traversal/P.cs")
 pFile.newWriter().withWriter{ it << pTemplate }
 
-// Process enums
-def toCSharpName = { enumClass, itemName ->
-    if (enumClass.equals(Direction.class)) {
-        itemName = itemName.toLowerCase()
-    }
-
-    return itemName.substring(0, 1).toUpperCase() + itemName.substring(1)
-}
 
 def createEnum = { enumClass ->
     def b = ["enumClass": enumClass,
@@ -348,11 +331,8 @@ def createEnum = { enumClass ->
                         return toCSharpTypeMap[typeName]
                     }.join(", "),
              "constants": enumClass.getEnumConstants().
-                    sort { a, b -> a.name() <=> b.name() }.
-                    collect { value ->
-                        def csharpName = toCSharpName(enumClass, value.name())
-                        return "public static ${enumClass.simpleName} ${csharpName} => new ${enumClass.simpleName}(\"${value.name()}\");"
-                    }]
+                    sort { a, b -> a.name() <=> b.name() },
+             "directionClass": Direction.class ]
 
     def enumTemplate = engine.createTemplate(new File("${projectBaseDir}/glv/Enum.template")).make(b)
     def enumFile = new File("${projectBaseDir}/src/Gremlin.Net/Process/Traversal/" + enumClass.getSimpleName() + ".cs")

@@ -32,7 +32,8 @@ import java.io.IOException;
  */
 public final class GraphSONUtil {
 
-    private GraphSONUtil() {}
+    private GraphSONUtil() {
+    }
 
     public static void writeWithType(final Object object, final JsonGenerator jsonGenerator,
                                      final SerializerProvider serializerProvider,

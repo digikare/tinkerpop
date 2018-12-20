@@ -19,9 +19,9 @@
 package org.apache.tinkerpop.gremlin.structure.io.gryo;
 
 import org.apache.tinkerpop.gremlin.structure.io.IoRegistry;
+import org.apache.tinkerpop.gremlin.structure.io.util.IoRegistryHelper;
 import org.apache.tinkerpop.shaded.kryo.Kryo;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -38,9 +38,11 @@ import java.util.function.Function;
  * @author Stephen Mallette (http://stephen.genoprime.com)
  */
 public final class GryoPool {
-    public static final String CONFIG_IO_REGISTRY = "gremlin.io.registry";
+
     public static final String CONFIG_IO_GRYO_POOL_SIZE = "gremlin.io.gryo.poolSize";
+    public static final String CONFIG_IO_GRYO_VERSION = "gremlin.io.gryo.version";
     public static final int CONFIG_IO_GRYO_POOL_SIZE_DEFAULT = 256;
+    public static final GryoVersion CONFIG_IO_GRYO_POOL_VERSION_DEFAULT = GryoVersion.V3_0;
 
     public enum Type {READER, WRITER, READER_WRITER}
 
@@ -145,6 +147,15 @@ public final class GryoPool {
         private List<IoRegistry> ioRegistries = new ArrayList<>();
         private Type type = Type.READER_WRITER;
         private Consumer<GryoMapper.Builder> gryoMapperConsumer = null;
+        private GryoVersion version = GryoVersion.V1_0;
+
+        /**
+         * Set the version of Gryo to use for this pool.
+         */
+        public Builder version(final GryoVersion version) {
+            this.version = version;
+            return this;
+        }
 
         /**
          * The {@code IoRegistry} class names to use for the {@code GryoPool}
@@ -153,7 +164,7 @@ public final class GryoPool {
          * @return the update builder
          */
         public Builder ioRegistries(final List<Object> ioRegistryClassNames) {
-            this.ioRegistries.addAll(tryCreateIoRegistry(ioRegistryClassNames));
+            this.ioRegistries.addAll(IoRegistryHelper.createRegistries(ioRegistryClassNames));
             return this;
         }
 
@@ -164,7 +175,7 @@ public final class GryoPool {
          * @return the update builder
          */
         public Builder ioRegistry(final Object ioRegistryClassName) {
-            this.ioRegistries.addAll(tryCreateIoRegistry(Collections.singletonList(ioRegistryClassName)));
+            this.ioRegistries.addAll(IoRegistryHelper.createRegistries(Collections.singletonList(ioRegistryClassName)));
             return this;
         }
 
@@ -207,7 +218,7 @@ public final class GryoPool {
          * @return the new pool
          */
         public GryoPool create() {
-            final GryoMapper.Builder mapper = GryoMapper.build();
+            final GryoMapper.Builder mapper = GryoMapper.build().version(version);
             final GryoPool gryoPool = new GryoPool();
             if (null != this.ioRegistries)
                 this.ioRegistries.forEach(mapper::addRegistry);
@@ -215,52 +226,6 @@ public final class GryoPool {
                 this.gryoMapperConsumer.accept(mapper);
             gryoPool.createPool(this.poolSize, this.type, mapper.create());
             return gryoPool;
-        }
-
-        /////
-
-        private static List<IoRegistry> tryCreateIoRegistry(final List<Object> classNames) {
-            if (classNames.isEmpty()) return Collections.emptyList();
-
-            final List<IoRegistry> registries = new ArrayList<>();
-            classNames.forEach(c -> {
-                try {
-                    final String className = c.toString();
-                    final Class<?> clazz = Class.forName(className);
-                    try {
-                        final Method instanceMethod = tryInstanceMethod(clazz);
-                        if (IoRegistry.class.isAssignableFrom(instanceMethod.getReturnType()))
-                            registries.add((IoRegistry) instanceMethod.invoke(null));
-                        else
-                            throw new Exception();
-                    } catch (Exception methodex) {
-                        // tried instance() and that failed so try newInstance() no-arg constructor
-                        registries.add((IoRegistry) clazz.newInstance());
-                    }
-                } catch (Exception ex) {
-                    throw new IllegalStateException(ex);
-                }
-            });
-            return registries;
-        }
-
-        private static Method tryInstanceMethod(final Class clazz) {
-            Method instanceMethod;
-            try {
-                instanceMethod = clazz.getDeclaredMethod("instance");
-            } catch (Exception methodex) {
-                instanceMethod = null;
-            }
-
-            if (null == instanceMethod) {
-                try {
-                    instanceMethod = clazz.getDeclaredMethod("getInstance");
-                } catch (Exception methodex) {
-                    instanceMethod = null;
-                }
-            }
-
-            return instanceMethod;
         }
     }
 }

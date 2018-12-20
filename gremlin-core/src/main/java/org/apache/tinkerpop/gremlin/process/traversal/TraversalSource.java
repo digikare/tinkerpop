@@ -29,8 +29,6 @@ import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.SideEf
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.util.function.ConstantSupplier;
 
-import java.io.Serializable;
-import java.lang.reflect.Constructor;
 import java.util.Optional;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
@@ -49,10 +47,20 @@ import java.util.function.UnaryOperator;
  * {@code TraversalSource(Graph)} and {@code TraversalSource(Graph,TraversalStrategies)}
  *
  * @author Marko A. Rodriguez (http://markorodriguez.com)
+ * @author Stephen Mallette (http://stephen.genoprime.com)
  */
 public interface TraversalSource extends Cloneable, AutoCloseable {
 
+    /**
+     * @deprecated As of release 3.3.5, replaced by {@link RemoteConnection#GREMLIN_REMOTE}.
+     */
+    @Deprecated
     public static final String GREMLIN_REMOTE = "gremlin.remote.";
+
+    /**
+     * @deprecated As of release 3.3.5, replaced by {@link RemoteConnection#GREMLIN_REMOTE_CONNECTION_CLASS}.
+     */
+    @Deprecated
     public static final String GREMLIN_REMOTE_CONNECTION_CLASS = GREMLIN_REMOTE + "remoteConnectionClass";
 
     /**
@@ -84,8 +92,6 @@ public interface TraversalSource extends Cloneable, AutoCloseable {
             // static fields only
         }
 
-        @Deprecated
-        public static final String withBindings = "withBindings";
         public static final String withSack = "withSack";
         public static final String withStrategies = "withStrategies";
         public static final String withoutStrategies = "withoutStrategies";
@@ -126,19 +132,6 @@ public interface TraversalSource extends Cloneable, AutoCloseable {
         clone.getStrategies().removeStrategies(traversalStrategyClasses);
         clone.getBytecode().addSource(TraversalSource.Symbols.withoutStrategies, traversalStrategyClasses);
         return clone;
-    }
-
-    /**
-     * Using the provided {@link Bindings} to create {@link org.apache.tinkerpop.gremlin.process.traversal.Bytecode.Binding}.
-     * The bindings serve as a relay for ensure bound arguments are encoded as {@link org.apache.tinkerpop.gremlin.process.traversal.Bytecode.Binding} in {@link Bytecode}.
-     *
-     * @param bindings the bindings instance to use
-     * @return a new traversal source with set bindings
-     * @deprecated As of release 3.2.4, replaced by use of {@link Bindings} without reference to a {@link TraversalSource}.
-     */
-    @Deprecated
-    public default TraversalSource withBindings(final Bindings bindings) {
-        return this;
     }
 
     /**
@@ -357,30 +350,26 @@ public interface TraversalSource extends Cloneable, AutoCloseable {
 
     /**
      * Configures the {@code TraversalSource} as a "remote" to issue the {@link Traversal} for execution elsewhere.
-     * Expects key for {@link #GREMLIN_REMOTE_CONNECTION_CLASS} as well as any configuration required by
+     * Expects key for {@link RemoteConnection#GREMLIN_REMOTE_CONNECTION_CLASS} as well as any configuration required by
      * the underlying {@link RemoteConnection} which will be instantiated. Note that the {@code Configuration} object
      * is passed down without change to the creation of the {@link RemoteConnection} instance.
+     *
+     * @deprecated As of release 3.3.5, replaced by {@link AnonymousTraversalSource#withRemote(Configuration)}.
+     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-2078">TINKERPOP-2078</a>
      */
+    @Deprecated
     public default TraversalSource withRemote(final Configuration conf) {
-        if (!conf.containsKey(GREMLIN_REMOTE_CONNECTION_CLASS))
-            throw new IllegalArgumentException("Configuration must contain the '" + GREMLIN_REMOTE_CONNECTION_CLASS + "' key");
-
-        final RemoteConnection remoteConnection;
-        try {
-            final Class<? extends RemoteConnection> clazz = Class.forName(conf.getString(GREMLIN_REMOTE_CONNECTION_CLASS)).asSubclass(RemoteConnection.class);
-            final Constructor<? extends RemoteConnection> ctor = clazz.getConstructor(Configuration.class);
-            remoteConnection = ctor.newInstance(conf);
-        } catch (Exception ex) {
-            throw new IllegalStateException(ex);
-        }
-
-        return withRemote(remoteConnection);
+        return withRemote(RemoteConnection.from(conf));
     }
 
     /**
      * Configures the {@code TraversalSource} as a "remote" to issue the {@link Traversal} for execution elsewhere.
      * Calls {@link #withRemote(Configuration)} after reading the properties file specified.
+     *
+     * @deprecated As of release 3.3.5, replaced by {@link AnonymousTraversalSource#withRemote(String)}.
+     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-2078">TINKERPOP-2078</a>
      */
+    @Deprecated
     public default TraversalSource withRemote(final String configFile) throws Exception {
         return withRemote(new PropertiesConfiguration(configFile));
     }
@@ -391,7 +380,10 @@ public interface TraversalSource extends Cloneable, AutoCloseable {
      * {@link RemoteConnection#close()} on them when the {@code TraversalSource} itself is closed.
      *
      * @param connection the {@link RemoteConnection} instance to use to submit the {@link Traversal}.
+     * @deprecated As of release 3.3.5, replaced by {@link AnonymousTraversalSource#withRemote(RemoteConnection)}.
+     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-2078">TINKERPOP-2078</a>
      */
+    @Deprecated
     public TraversalSource withRemote(final RemoteConnection connection);
 
     public default Optional<Class> getAnonymousTraversalClass() {
@@ -411,37 +403,6 @@ public interface TraversalSource extends Cloneable, AutoCloseable {
     @Override
     public default void close() throws Exception {
         // do nothing
-    }
-
-    /**
-     * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-     */
-    @Deprecated
-    public interface Builder<C extends TraversalSource> extends Serializable {
-
-        /**
-         * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-         */
-        @Deprecated
-        public Builder engine(final TraversalEngine.Builder engine);
-
-        /**
-         * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-         */
-        @Deprecated
-        public Builder with(final TraversalStrategy strategy);
-
-        /**
-         * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-         */
-        @Deprecated
-        public Builder without(final Class<? extends TraversalStrategy> strategyClass);
-
-        /**
-         * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-         */
-        @Deprecated
-        public C create(final Graph graph);
     }
 
 }

@@ -15,7 +15,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 *******************************************************************************
-* The following groovy script generates the data samples for GraphSON.
+* The following groovy script generates the data samples for GraphSON and is
+* used when older versions of TinkerPop need data generation for the tests,
+* specifically, the 3.2.x line before gremlin-io-test was a module.
 *******************************************************************************
 import java.time.*
 mapper = GraphSONMapper.build().
@@ -25,18 +27,30 @@ mapper = GraphSONMapper.build().
 graph = TinkerFactory.createTheCrew()
 g = graph.traversal()
 
-toJson = { o, type, comment = "" ->
+new File("io-output/test-case-data/graphson/").mkdirs()
+
+toJson = { o, type, comment = "", suffix = "v1d0" ->
   println "Writing ${type}"
+
+  def jsonSample = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(o)
+
+  def fileToWriteTo = new File("io-output/test-case-data/graphson/" + type.toLowerCase().replace(" ","") + "-" + suffix + ".json")
+  if (fileToWriteTo.exists())
+    fileToWriteTo.delete()
+
+  fileToWriteTo.withWriter{ it.write(jsonSample) }
+
   "==== ${type}\n\n" +
   (comment.isEmpty() ? "" : comment + "\n\n") +
   "[source,json]\n" +
   "----\n" +
-  mapper.writerWithDefaultPrettyPrinter().writeValueAsString(o) + "\n" +
+  jsonSample + "\n" +
   "----\n" +
   "\n"
 }
 
-file = new File("out-graphson-1d0.txt")
+
+file = new File("io-output/out-graphson-1d0.txt")
 file.withWriter { writer ->
 
   writer.write("=== Graph Structure\n\n")
@@ -53,23 +67,29 @@ file.withWriter { writer ->
   writer.write("=== RequestMessage\n\n")
   def msg = null
   msg = RequestMessage.build("authentication").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
                        add("saslMechanism", "PLAIN", "sasl", "AHN0ZXBocGhlbgBwYXNzd29yZA==").create()
   writer.write(toJson(msg, "Authentication Response", "The following `RequestMessage` is an example of the response that should be made to a SASL-based authentication challenge."))
   msg = RequestMessage.build("eval").processor("session").
-                           add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                       add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
   writer.write(toJson(msg, "Session Eval", "The following `RequestMessage` is an example of a simple session request for a script evaluation with parameters."))
   msg = RequestMessage.build("eval").processor("session").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
                        add("gremlin", "social.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "aliases", [g: "social"], "session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
-  writer.write(toJson(msg, "Session Eval", "The following `RequestMessage` is an example of a session request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\"."))
+  writer.write(toJson(msg, "Session Eval Aliased", "The following `RequestMessage` is an example of a session request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\"."))
   msg = RequestMessage.build("close").processor("session").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
                        add("session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
   writer.write(toJson(msg, "Session Close", "The following `RequestMessage` is an example of a request to close a session."))
   msg = RequestMessage.build("eval").
-                           add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy").create()
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                       add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy").create()
   writer.write(toJson(msg, "Sessionless Eval", "The following `RequestMessage` is an example of a simple sessionless request for a script evaluation with parameters."))
   msg = RequestMessage.build("eval").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
                        add("gremlin", "social.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "aliases", [g: "social"]).create()
-  writer.write(toJson(msg, "Sessionless Eval", "The following `RequestMessage` is an example of a sessionless request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\"."))
+  writer.write(toJson(msg, "Sessionless Eval Aliased", "The following `RequestMessage` is an example of a sessionless request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\"."))
 
   writer.write("\n")
   writer.write("=== ResponseMessage\n\n")
@@ -80,22 +100,6 @@ file.withWriter { writer ->
                         code(org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode.SUCCESS).
                         result(Arrays.asList(graph.vertices().next())).create()
   writer.write(toJson(msg, "Standard Result", "The following `ResponseMessage` is a typical example of the typical successful response Gremlin Server will return when returning results from a script."))
-
-  writer.write("\n")
-  writer.write("=== Time\n\n")
-  writer.write(toJson(Duration.ofDays(5), "Duration", "The following example is a `Duration` of five days."))
-  writer.write(toJson(Instant.now(), "Instant"))
-  writer.write(toJson(LocalDate.of(2016, 1, 1), "LocalDate"))
-  writer.write(toJson(LocalDateTime.of(2016, 1, 1, 12, 30), "LocalDateTime"))
-  writer.write(toJson(LocalTime.of(12, 30, 45), "LocalTime"))
-  writer.write(toJson(MonthDay.of(1, 1), "MonthDay"))
-  writer.write(toJson(OffsetDateTime.now(), "OffsetDateTime"))
-  writer.write(toJson(OffsetTime.now(), "OffsetTime"))
-  writer.write(toJson(Period.of(1, 6, 15), "Period", "The following example is a `Period` of one year, six months and fifteen days."))
-  writer.write(toJson(Year.of(2016), "Year", "The following example is of the `Year` \"2016\"."))
-  writer.write(toJson(YearMonth.of(2016, 6), "YearMonth", "The following example is a `YearMonth` of \"June 2016\""))
-  writer.write(toJson(ZonedDateTime.now(), "ZonedDateTime"))
-  writer.write(toJson(ZoneOffset.ofHoursMinutesSeconds(3, 6, 9), "ZoneOffset", "The following example is a `ZoneOffset` of three hours, six minutes, and nine seconds."))
 
 }
 
@@ -106,88 +110,93 @@ mapper = GraphSONMapper.build().
                         addCustomModule(new org.apache.tinkerpop.gremlin.driver.ser.AbstractGraphSONMessageSerializerV2d0.GremlinServerModule()).
                         version(GraphSONVersion.V2_0).create().createMapper()
 
-file = new File("out-graphson-2d0.txt")
+file = new File("io-output/out-graphson-2d0-partial.txt")
 file.withWriter { writer ->
 
   writer.write("=== Core\n\n")
-  writer.write(toJson(File, "Class"))
-  writer.write(toJson(new Date(), "Date"))
-  writer.write(toJson(100.00d, "Double"))
-  writer.write(toJson(100.00f, "Float"))
-  writer.write(toJson(100, "Integer"))
-  writer.write(toJson(100L, "Long"))
-  writer.write(toJson(new java.sql.Timestamp(System.currentTimeMillis()), "Timestamp"))
-  writer.write(toJson(UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786"), "UUID"))
+  writer.write(toJson(File, "Class", "", "v2d0-partial"))
+  writer.write(toJson(new Date(1481750076295L), "Date", "", "v2d0-partial"))
+  writer.write(toJson(100.00d, "Double", "", "v2d0-partial"))
+  writer.write(toJson(100.00f, "Float", "", "v2d0-partial"))
+  writer.write(toJson(100, "Integer", "", "v2d0-partial"))
+  writer.write(toJson(100L, "Long", "", "v2d0-partial"))
+  writer.write(toJson(new java.sql.Timestamp(1481750076295L), "Timestamp", "", "v2d0-partial"))
+  writer.write(toJson(UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786"), "UUID", "", "v2d0-partial"))
 
   writer.write("\n")
   writer.write("=== Graph Structure\n\n")
-  writer.write(toJson(graph.edges().next(), "Edge"))
-  writer.write(toJson(g.V().out().out().path().next(), "Path"))
-  writer.write(toJson(graph.edges().next().properties().next(), "Property"))
-  writer.write(toJson(new org.apache.tinkerpop.gremlin.structure.util.star.DirectionalStarGraph(org.apache.tinkerpop.gremlin.structure.util.star.StarGraph.of(graph.vertices().next()), Direction.BOTH), "StarGraph"))
-  writer.write(toJson(graph, "TinkerGraph", "`TinkerGraph` has a custom serializer that is registered as part of the `TinkerIoRegistry`."))
-  writer.write(toJson(g.V().out().out().tree().next(), "Tree"))
-  writer.write(toJson(graph.vertices().next(), "Vertex"))
-  writer.write(toJson(graph.vertices().next().properties().next(), "VertexProperty"))
+  writer.write(toJson(graph.edges().next(), "Edge", "", "v2d0-partial"))
+  writer.write(toJson(g.V().out().out().path().next(), "Path", "", "v2d0-partial"))
+  writer.write(toJson(graph.edges().next().properties().next(), "Property", "", "v2d0-partial"))
+  writer.write(toJson(new org.apache.tinkerpop.gremlin.structure.util.star.DirectionalStarGraph(org.apache.tinkerpop.gremlin.structure.util.star.StarGraph.of(graph.vertices().next()), Direction.BOTH), "StarGraph", "", "v2d0-partial"))
+  writer.write(toJson(graph, "TinkerGraph", "`TinkerGraph` has a custom serializer that is registered as part of the `TinkerIoRegistry`.", "v2d0-partial"))
+  writer.write(toJson(g.V().out().out().tree().next(), "Tree", "", "v2d0-partial"))
+  writer.write(toJson(graph.vertices().next(), "Vertex", "", "v2d0-partial"))
+  writer.write(toJson(graph.vertices().next().properties().next(), "VertexProperty", "", "v2d0-partial"))
 
   writer.write("\n")
   writer.write("=== Graph Process\n\n")
-  writer.write(toJson(SackFunctions.Barrier.normSack, "Barrier"))
-  writer.write(toJson(new Bytecode.Binding("x", 1), "Binding", "A \"Binding\" refers to a `Bytecode.Binding`."))
-  writer.write(toJson(g.V().hasLabel('person').out().in().tree(), "Bytecode", "The following `Bytecode` example represents the traversal of `g.V().hasLabel('person').out().in().tree()`. Obviously the serialized `Bytecode` woudl be quite different for the endless variations of commands that could be used together in the Gremlin language."))
-  writer.write(toJson(VertexProperty.Cardinality.list, "Cardinality"))
-  writer.write(toJson(Column.keys, "Column"))
-  writer.write(toJson(Direction.OUT, "Direction"))
-  writer.write(toJson(Operator.sum, "Operator"))
-  writer.write(toJson(Order.incr, "Order"))
-  writer.write(toJson(Pop.all, "Pop"))
-  writer.write(toJson(org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent.Pick.any, "Pick"))
-  writer.write(toJson(org.apache.tinkerpop.gremlin.util.function.Lambda.function("{ it.get() }"), "Lambda"))
+  writer.write(toJson(SackFunctions.Barrier.normSack, "Barrier", "", "v2d0-partial"))
+  writer.write(toJson(new Bytecode.Binding("x", 1), "Binding", "A \"Binding\" refers to a `Bytecode.Binding`.", "v2d0-partial"))
+  writer.write(toJson(g.V().hasLabel('person').out().in().tree(), "Bytecode", "The following `Bytecode` example represents the traversal of `g.V().hasLabel('person').out().in().tree()`. Obviously the serialized `Bytecode` would be quite different for the endless variations of commands that could be used together in the Gremlin language.", "v2d0-partial"))
+  writer.write(toJson(VertexProperty.Cardinality.list, "Cardinality", "", "v2d0-partial"))
+  writer.write(toJson(Column.keys, "Column", "", "v2d0-partial"))
+  writer.write(toJson(Direction.OUT, "Direction", "", "v2d0-partial"))
+  writer.write(toJson(Operator.sum, "Operator", "", "v2d0-partial"))
+  writer.write(toJson(Order.shuffle, "Order", "", "v2d0-partial"))
+  writer.write(toJson(org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent.Pick.any, "Pick", "", "v2d0-partial"))
+  writer.write(toJson(Pop.all, "Pop", "", "v2d0-partial"))
+  writer.write(toJson(org.apache.tinkerpop.gremlin.util.function.Lambda.function("{ it.get() }"), "Lambda", "", "v2d0-partial"))
   tm = g.V().hasLabel('person').out().out().tree().profile().next()
   metrics = new org.apache.tinkerpop.gremlin.process.traversal.util.MutableMetrics(tm.getMetrics(0));
   metrics.addNested(new org.apache.tinkerpop.gremlin.process.traversal.util.MutableMetrics(tm.getMetrics(1)));
-  writer.write(toJson(metrics, "Metrics"))
-  writer.write(toJson(P.gt(0), "P", "`P` expects a single value of a `List` of values. There is special handling for `List` values when it comes to `within`, `without`, `inside`, `outside` and `between`. For `inside`, `outside` and `between`, the expectation is that the collection contain two objects (the rest will be ignored) and those two objects become the arguments to those methods. For `within` and `without`, these methods will accept an arbitrary number of objects in the collection."))
-  writer.write(toJson(P.within(1), "P within", "Please see <<p,P>> for additional information on `within`."))
-  writer.write(toJson(P.without(1,2), "P without", "Please see <<p,P>> for additional information on `within`."))
-  writer.write(toJson(P.gt(0).and(P.lt(10)), "P and"))
-  writer.write(toJson(P.gt(0).or(P.within(-1, -10, -100)), "P or"))
-  writer.write(toJson(Scope.local, "Scope"))
-  writer.write(toJson(T.label, "T"))
-  writer.write(toJson(g.V().hasLabel('person').out().out().tree().profile().next(), "TraversalMetrics"))
-  writer.write(toJson(g.V().hasLabel('person').nextTraverser(), "Traverser"))
+  writer.write(toJson(metrics, "Metrics", "", "v2d0-partial"))
+  writer.write(toJson(P.gt(0), "P", "`P` expects a single value of a `List` of values. There is special handling for `List` values when it comes to `within`, `without`, `inside`, `outside` and `between`. For `inside`, `outside` and `between`, the expectation is that the collection contain two objects (the rest will be ignored) and those two objects become the arguments to those methods. For `within` and `without`, these methods will accept an arbitrary number of objects in the collection.", "v2d0-partial"))
+  writer.write(toJson(P.within(1), "P within", "Please see <<p,P>> for additional information on `within`.", "v2d0-partial"))
+  writer.write(toJson(P.without(1,2), "P without", "Please see <<p,P>> for additional information on `within`.", "v2d0-partial"))
+  writer.write(toJson(P.gt(0).and(P.lt(10)), "P and", "", "v2d0-partial"))
+  writer.write(toJson(P.gt(0).or(P.within(-1, -10, -100)), "P or", "", "v2d0-partial"))
+  writer.write(toJson(Scope.local, "Scope", "", "v2d0-partial"))
+  writer.write(toJson(T.label, "T", "", "v2d0-partial"))
+  writer.write(toJson(g.V().hasLabel('person').out().out().tree().profile().next(), "TraversalMetrics", "", "v2d0-partial"))
+  writer.write(toJson(g.V().hasLabel('person').nextTraverser(), "Traverser", "", "v2d0-partial"))
 
   writer.write("\n")
   writer.write("=== RequestMessage\n\n")
-  def msg = null
   msg = RequestMessage.build("authentication").
-                       add("saslMechanism", "PLAIN", "sasl", "AHN0ZXBocGhlbgBwYXNzd29yZA==").create()
-  writer.write(toJson(msg, "Authentication Response", "The following `RequestMessage` is an example of the response that should be made to a SASL-based authentication challenge."))
+                overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                add("saslMechanism", "PLAIN", "sasl", "AHN0ZXBocGhlbgBwYXNzd29yZA==").create()
+  writer.write(toJson(msg, "Authentication Response", "The following `RequestMessage` is an example of the response that should be made to a SASL-based authentication challenge.", "v2d0-partial"))
   msg = RequestMessage.build("eval").processor("session").
-                           add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
-  writer.write(toJson(msg, "Session Eval", "The following `RequestMessage` is an example of a simple session request for a script evaluation with parameters."))
+                overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
+  writer.write(toJson(msg, "Session Eval", "The following `RequestMessage` is an example of a simple session request for a script evaluation with parameters.", "v2d0-partial"))
   msg = RequestMessage.build("eval").processor("session").
-                       add("gremlin", "social.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "aliases", [g: "social"], "session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
-  writer.write(toJson(msg, "Session Eval", "The following `RequestMessage` is an example of a session request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\"."))
+                overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                add("gremlin", "social.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "aliases", [g: "social"], "session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
+  writer.write(toJson(msg, "Session Eval Aliased", "The following `RequestMessage` is an example of a session request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\".", "v2d0-partial"))
   msg = RequestMessage.build("close").processor("session").
-                       add("session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
-  writer.write(toJson(msg, "Session Close", "The following `RequestMessage` is an example of a request to close a session."))
+                overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                add("session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
+  writer.write(toJson(msg, "Session Close", "The following `RequestMessage` is an example of a request to close a session.", "v2d0-partial"))
   msg = RequestMessage.build("eval").
-                           add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy").create()
-  writer.write(toJson(msg, "Sessionless Eval", "The following `RequestMessage` is an example of a simple sessionless request for a script evaluation with parameters."))
+                overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy").create()
+  writer.write(toJson(msg, "Sessionless Eval", "The following `RequestMessage` is an example of a simple sessionless request for a script evaluation with parameters.", "v2d0-partial"))
   msg = RequestMessage.build("eval").
-                       add("gremlin", "social.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "aliases", [g: "social"]).create()
-  writer.write(toJson(msg, "Sessionless Eval", "The following `RequestMessage` is an example of a sessionless request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\"."))
+                overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                add("gremlin", "social.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "aliases", [g: "social"]).create()
+  writer.write(toJson(msg, "Sessionless Eval Aliased", "The following `RequestMessage` is an example of a sessionless request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\".", "v2d0-partial"))
 
   writer.write("\n")
   writer.write("=== ResponseMessage\n\n")
   msg = ResponseMessage.build(UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).
                         code(org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode.AUTHENTICATE).create()
-  writer.write(toJson(msg, "Authentication Challenge", "When authentication is enabled, an initial request to the server will result in an authentication challenge. The typical response message will appear as follows, but handling it could be different dependending on the SASL implementation (e.g. multiple challenges may be requested in some cases, but not in the default provided by Gremlin Server)."))
+  writer.write(toJson(msg, "Authentication Challenge", "When authentication is enabled, an initial request to the server will result in an authentication challenge. The typical response message will appear as follows, but handling it could be different dependending on the SASL implementation (e.g. multiple challenges may be requested in some cases, but no in the default provided by Gremlin Server).", "v2d0-partial"))
   msg = ResponseMessage.build(UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).
                         code(org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode.SUCCESS).
                         result(Arrays.asList(graph.vertices().next())).create()
-  writer.write(toJson(msg, "Standard Result", "The following `ResponseMessage` is a typical example of the typical successful response Gremlin Server will return when returning results from a script."))
+  writer.write(toJson(msg, "Standard Result", "The following `ResponseMessage` is a typical example of the typical successful response Gremlin Server will return when returning results from a script.", "v2d0-partial"))
 
   writer.write("\n")
   writer.write("=== Extended\n\n")
@@ -200,26 +209,155 @@ mapper = GraphSONMapper.build().
                         version(GraphSONVersion.V2_0).create().createMapper()
 ----\n
 """)
-  writer.write(toJson(new java.math.BigDecimal(new java.math.BigInteger("123456789987654321123456789987654321")), "BigDecimal"))
-  writer.write(toJson(new java.math.BigInteger("123456789987654321123456789987654321"), "BigInteger"))
-  writer.write(toJson(new Byte("1"), "Byte"))
-  writer.write(toJson(java.nio.ByteBuffer.wrap([1,2,3,4,5] as byte[]), "ByteBuffer"))
-  writer.write(toJson("x".charAt(0), "Char"))
-  writer.write(toJson(Duration.ofDays(5), "Duration", "The following example is a `Duration` of five days."))
-  writer.write(toJson(java.net.InetAddress.getByName("localhost"), "InetAddress"))
-  writer.write(toJson(Instant.now(), "Instant"))
-  writer.write(toJson(LocalDate.of(2016, 1, 1), "LocalDate"))
-  writer.write(toJson(LocalDateTime.of(2016, 1, 1, 12, 30), "LocalDateTime"))
-  writer.write(toJson(LocalTime.of(12, 30, 45), "LocalTime"))
-  writer.write(toJson(MonthDay.of(1, 1), "MonthDay"))
-  writer.write(toJson(OffsetDateTime.now(), "OffsetDateTime"))
-  writer.write(toJson(OffsetTime.now(), "OffsetTime"))
-  writer.write(toJson(Period.of(1, 6, 15), "Period", "The following example is a `Period` of one year, six months and fifteen days."))
-  writer.write(toJson(new Short("100"), "Short"))
-  writer.write(toJson(Year.of(2016), "Year", "The following example is of the `Year` \"2016\"."))
-  writer.write(toJson(YearMonth.of(2016, 6), "YearMonth", "The following example is a `YearMonth` of \"June 2016\""))
-  writer.write(toJson(ZonedDateTime.now(), "ZonedDateTime"))
-  writer.write(toJson(ZoneOffset.ofHoursMinutesSeconds(3, 6, 9), "ZoneOffset", "The following example is a `ZoneOffset` of three hours, six minutes, and nine seconds."))
+  writer.write(toJson(new java.math.BigDecimal(new java.math.BigInteger("123456789987654321123456789987654321")), "BigDecimal", "", "v2d0-partial"))
+  writer.write(toJson(new java.math.BigInteger("123456789987654321123456789987654321"), "BigInteger", "", "v2d0-partial"))
+  writer.write(toJson(new Byte("1"), "Byte", "", "v2d0-partial"))
+  writer.write(toJson(java.nio.ByteBuffer.wrap("some bytes for you".getBytes()), "ByteBuffer", "", "v2d0-partial"))
+  writer.write(toJson("x".charAt(0), "Char", "", "v2d0-partial"))
+  writer.write(toJson(Duration.ofDays(5), "Duration", "The following example is a `Duration` of five days.", "v2d0-partial"))
+  writer.write(toJson(java.net.InetAddress.getByName("localhost"), "InetAddress", "", "v2d0-partial"))
+  writer.write(toJson(Instant.parse("2016-12-14T16:39:19.349Z"), "Instant", "", "v2d0-partial"))
+  writer.write(toJson(LocalDate.of(2016, 1, 1), "LocalDate", "", "v2d0-partial"))
+  writer.write(toJson(LocalDateTime.of(2016, 1, 1, 12, 30), "LocalDateTime", "", "v2d0-partial"))
+  writer.write(toJson(LocalTime.of(12, 30, 45), "LocalTime", "", "v2d0-partial"))
+  writer.write(toJson(MonthDay.of(1, 1), "MonthDay", "", "v2d0-partial"))
+  writer.write(toJson(OffsetDateTime.parse("2007-12-03T10:15:30+01:00"), "OffsetDateTime", "", "v2d0-partial"))
+  writer.write(toJson(OffsetTime.parse("10:15:30+01:00"), "OffsetTime", "", "v2d0-partial"))
+  writer.write(toJson(Period.of(1, 6, 15), "Period", "The following example is a `Period` of one year, six months and fifteen days.", "v2d0-partial"))
+  writer.write(toJson(new Short("100"), "Short", "", "v2d0-partial"))
+  writer.write(toJson(Year.of(2016), "Year", "The following example is of the `Year` \"2016\".", "v2d0-partial"))
+  writer.write(toJson(YearMonth.of(2016, 6), "YearMonth", "The following example is a `YearMonth` of \"June 2016\"", "v2d0-partial"))
+  writer.write(toJson(ZonedDateTime.of(2016, 12, 23, 12, 12, 24, 36, ZoneId.of("GMT+2")), "ZonedDateTime", "", "v2d0-partial"))
+  writer.write(toJson(ZoneOffset.ofHoursMinutesSeconds(3, 6, 9), "ZoneOffset", "The following example is a `ZoneOffset` of three hours, six minutes, and nine seconds.", "v2d0-partial"))
+
+}
+
+mapper = GraphSONMapper.build().
+                        addRegistry(TinkerIoRegistryV2d0.instance()).
+                        typeInfo(TypeInfo.NO_TYPES).
+                        addCustomModule(GraphSONXModuleV2d0.build().create(false)).
+                        addCustomModule(new org.apache.tinkerpop.gremlin.driver.ser.AbstractGraphSONMessageSerializerV2d0.GremlinServerModule()).
+                        version(GraphSONVersion.V2_0).create().createMapper()
+
+file = new File("io-output/out-graphson-2d0-no-types.txt")
+file.withWriter { writer ->
+
+  writer.write("=== Core\n\n")
+  writer.write(toJson(File, "Class", "", "v2d0-no-types"))
+  writer.write(toJson(new Date(1481750076295L), "Date", "", "v2d0-no-types"))
+  writer.write(toJson(100.00d, "Double", "", "v2d0-no-types"))
+  writer.write(toJson(100.00f, "Float", "", "v2d0-no-types"))
+  writer.write(toJson(100, "Integer", "", "v2d0-no-types"))
+  writer.write(toJson(100L, "Long", "", "v2d0-no-types"))
+  writer.write(toJson(new java.sql.Timestamp(1481750076295L), "Timestamp", "", "v2d0-no-types"))
+  writer.write(toJson(UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786"), "UUID", "", "v2d0-no-types"))
+
+  writer.write("\n")
+  writer.write("=== Graph Structure\n\n")
+  writer.write(toJson(graph.edges().next(), "Edge", "", "v2d0-no-types"))
+  writer.write(toJson(g.V().out().out().path().next(), "Path", "", "v2d0-no-types"))
+  writer.write(toJson(graph.edges().next().properties().next(), "Property", "", "v2d0-no-types"))
+  writer.write(toJson(new org.apache.tinkerpop.gremlin.structure.util.star.DirectionalStarGraph(org.apache.tinkerpop.gremlin.structure.util.star.StarGraph.of(graph.vertices().next()), Direction.BOTH), "StarGraph", "", "v2d0-no-types"))
+  writer.write(toJson(graph, "TinkerGraph", "`TinkerGraph` has a custom serializer that is registered as part of the `TinkerIoRegistry`.", "v2d0-no-types"))
+  writer.write(toJson(g.V().out().out().tree().next(), "Tree", "", "v2d0-no-types"))
+  writer.write(toJson(graph.vertices().next(), "Vertex", "", "v2d0-no-types"))
+  writer.write(toJson(graph.vertices().next().properties().next(), "VertexProperty", "", "v2d0-no-types"))
+
+  writer.write("\n")
+  writer.write("=== Graph Process\n\n")
+  writer.write(toJson(SackFunctions.Barrier.normSack, "Barrier", "", "v2d0-no-types"))
+  writer.write(toJson(new Bytecode.Binding("x", 1), "Binding", "A \"Binding\" refers to a `Bytecode.Binding`.", "v2d0-no-types"))
+  writer.write(toJson(g.V().hasLabel('person').out().in().tree(), "Bytecode", "The following `Bytecode` example represents the traversal of `g.V().hasLabel('person').out().in().tree()`. Obviously the serialized `Bytecode` would be quite different for the endless variations of commands that could be used together in the Gremlin language.", "v2d0-no-types"))
+  writer.write(toJson(VertexProperty.Cardinality.list, "Cardinality", "", "v2d0-no-types"))
+  writer.write(toJson(Column.keys, "Column", "", "v2d0-no-types"))
+  writer.write(toJson(Direction.OUT, "Direction", "", "v2d0-no-types"))
+  writer.write(toJson(Operator.sum, "Operator", "", "v2d0-no-types"))
+  writer.write(toJson(Order.shuffle, "Order", "", "v2d0-no-types"))
+  writer.write(toJson(Pop.all, "Pop", "", "v2d0-no-types"))
+  writer.write(toJson(org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent.Pick.any, "Pick", "", "v2d0-no-types"))
+  writer.write(toJson(org.apache.tinkerpop.gremlin.util.function.Lambda.function("{ it.get() }"), "Lambda", "", "v2d0-no-types"))
+  tm = g.V().hasLabel('person').out().out().tree().profile().next()
+  metrics = new org.apache.tinkerpop.gremlin.process.traversal.util.MutableMetrics(tm.getMetrics(0));
+  metrics.addNested(new org.apache.tinkerpop.gremlin.process.traversal.util.MutableMetrics(tm.getMetrics(1)));
+  writer.write(toJson(metrics, "Metrics", "", "v2d0-no-types"))
+  writer.write(toJson(P.gt(0), "P", "", "v2d0-no-types"))
+  writer.write(toJson(P.within(1), "P within", "v2d0-no-types"))
+  writer.write(toJson(P.without(1,2), "P without", "v2d0-no-types"))
+  writer.write(toJson(P.gt(0).and(P.lt(10)), "P and", "", "v2d0-no-types"))
+  writer.write(toJson(P.gt(0).or(P.within(-1, -10, -100)), "P or", "", "v2d0-no-types"))
+  writer.write(toJson(Scope.local, "Scope", "", "v2d0-no-types"))
+  writer.write(toJson(T.label, "T", "", "v2d0-no-types"))
+  writer.write(toJson(g.V().hasLabel('person').out().out().tree().profile().next(), "TraversalMetrics", "", "v2d0-no-types"))
+  writer.write(toJson(g.V().hasLabel('person').nextTraverser(), "Traverser", "", "v2d0-no-types"))
+
+  writer.write("\n")
+  writer.write("=== RequestMessage\n\n")
+  msg = RequestMessage.build("authentication").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                       add("saslMechanism", "PLAIN", "sasl", "AHN0ZXBocGhlbgBwYXNzd29yZA==").create()
+  writer.write(toJson(msg, "Authentication Response", "The following `RequestMessage` is an example of the response that should be made to a SASL-based authentication challenge.", "v2d0-no-types"))
+  msg = RequestMessage.build("eval").processor("session").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                       add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
+  writer.write(toJson(msg, "Session Eval", "The following `RequestMessage` is an example of a simple session request for a script evaluation with parameters.", "v2d0-no-types"))
+  msg = RequestMessage.build("eval").processor("session").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                       add("gremlin", "social.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "aliases", [g: "social"], "session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
+  writer.write(toJson(msg, "Session Eval Aliased", "The following `RequestMessage` is an example of a session request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\".", "v2d0-no-types"))
+  msg = RequestMessage.build("close").processor("session").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                       add("session", UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).create()
+  writer.write(toJson(msg, "Session Close", "The following `RequestMessage` is an example of a request to close a session.", "v2d0-no-types"))
+  msg = RequestMessage.build("eval").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                       add("gremlin", "g.V(x)", "bindings", [x: 1], "language", "gremlin-groovy").create()
+  writer.write(toJson(msg, "Sessionless Eval", "The following `RequestMessage` is an example of a simple sessionless request for a script evaluation with parameters.", "v2d0-no-types"))
+  msg = RequestMessage.build("eval").
+                       overrideRequestId(UUID.fromString("cb682578-9d92-4499-9ebc-5c6aa73c5397")).
+                       add("gremlin", "social.V(x)", "bindings", [x: 1], "language", "gremlin-groovy", "aliases", [g: "social"]).create()
+  writer.write(toJson(msg, "Sessionless Eval Aliased", "The following `RequestMessage` is an example of a sessionless request for a script evaluation with an alias that binds the `TraversalSource` of \"g\" to \"social\".", "v2d0-no-types"))
+
+  writer.write("\n")
+  writer.write("=== ResponseMessage\n\n")
+  msg = ResponseMessage.build(UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).
+                        code(org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode.AUTHENTICATE).create()
+  writer.write(toJson(msg, "Authentication Challenge", "When authentication is enabled, an initial request to the server will result in an authentication challenge. The typical response message will appear as follows, but handling it could be different dependending on the SASL implementation (e.g. multiple challenges maybe requested in some cases, but no in the default provided by Gremlin Server).", "v2d0-no-types"))
+  msg = ResponseMessage.build(UUID.fromString("41d2e28a-20a4-4ab0-b379-d810dede3786")).
+                        code(org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode.SUCCESS).
+                        result(Arrays.asList(graph.vertices().next())).create()
+  writer.write(toJson(msg, "Standard Result", "The following `ResponseMessage` is a typical example of the typical successful response Gremlin Server will return when returning results from a script.", "v2d0-no-types"))
+
+  writer.write("\n")
+  writer.write("=== Extended\n\n")
+  writer.write("""Note that the "extended" types require the addition of the separate `GraphSONXModuleV2d0` module as follows:\n
+[source,java]
+----
+mapper = GraphSONMapper.build().
+                        typeInfo(TypeInfo.NO_TYPES).
+                        addCustomModule(GraphSONXModuleV2d0.build().create(false)).
+                        version(GraphSONVersion.V2_0).create().createMapper()
+----\n
+""")
+  writer.write(toJson(new java.math.BigDecimal(new java.math.BigInteger("123456789987654321123456789987654321")), "BigDecimal", "", "v2d0-partial"))
+  writer.write(toJson(new java.math.BigInteger("123456789987654321123456789987654321"), "BigInteger", "", "v2d0-partial"))
+  writer.write(toJson(new Byte("1"), "Byte", "", "v2d0-partial"))
+  writer.write(toJson(java.nio.ByteBuffer.wrap("some bytes for you".getBytes()), "ByteBuffer", "", "v2d0-partial"))
+  writer.write(toJson("x".charAt(0), "Char", "", "v2d0-partial"))
+  writer.write(toJson(Duration.ofDays(5), "Duration", "The following example is a `Duration` of five days.", "v2d0-partial"))
+  writer.write(toJson(java.net.InetAddress.getByName("localhost"), "InetAddress", "", "v2d0-partial"))
+  writer.write(toJson(Instant.parse("2016-12-14T16:39:19.349Z"), "Instant", "", "v2d0-partial"))
+  writer.write(toJson(LocalDate.of(2016, 1, 1), "LocalDate", "", "v2d0-partial"))
+  writer.write(toJson(LocalDateTime.of(2016, 1, 1, 12, 30), "LocalDateTime", "", "v2d0-partial"))
+  writer.write(toJson(LocalTime.of(12, 30, 45), "LocalTime", "", "v2d0-partial"))
+  writer.write(toJson(MonthDay.of(1, 1), "MonthDay", "", "v2d0-partial"))
+  writer.write(toJson(OffsetDateTime.parse("2007-12-03T10:15:30+01:00"), "OffsetDateTime", "", "v2d0-partial"))
+  writer.write(toJson(OffsetTime.parse("10:15:30+01:00"), "OffsetTime", "", "v2d0-partial"))
+  writer.write(toJson(Period.of(1, 6, 15), "Period", "The following example is a `Period` of one year, six months and fifteen days.", "v2d0-partial"))
+  writer.write(toJson(new Short("100"), "Short", "", "v2d0-partial"))
+  writer.write(toJson(Year.of(2016), "Year", "The following example is of the `Year` \"2016\".", "v2d0-partial"))
+  writer.write(toJson(YearMonth.of(2016, 6), "YearMonth", "The following example is a `YearMonth` of \"June 2016\"", "v2d0-partial"))
+  writer.write(toJson(ZonedDateTime.of(2016, 12, 23, 12, 12, 24, 36, ZoneId.of("GMT+2")), "ZonedDateTime", "", "v2d0-partial"))
+  writer.write(toJson(ZoneOffset.ofHoursMinutesSeconds(3, 6, 9), "ZoneOffset", "The following example is a `ZoneOffset` of three hours, six minutes, and nine seconds.", "v2d0-partial"))
 
 }
 *******************************************************************************
@@ -260,7 +398,7 @@ writer.writeObject(os, graph);
 Generalized object serialization will be discussed later in this section, so for now the focus will be on the "graph"
 format. Unlike GraphML, GraphSON does not use an edge list format. It uses an adjacency list. In the adjacency list,
 each vertex is essentially a line in the file and the vertex line contains a list of all the edges associated with
-that vertex. The GraphSON 2.0 representation looks like this for the Modern toy graph:
+that vertex. The GraphSON 3.0 representation looks like this for the Modern toy graph:
 
 [source,json]
 ----
@@ -272,9 +410,9 @@ that vertex. The GraphSON 2.0 representation looks like this for the Modern toy 
 {"id":{"@type":"g:Int32","@value":6},"label":"person","outE":{"created":[{"id":{"@type":"g:Int32","@value":12},"inV":{"@type":"g:Int32","@value":3},"properties":{"weight":{"@type":"g:Double","@value":0.2}}}]},"properties":{"name":[{"id":{"@type":"g:Int64","@value":10},"value":"peter"}],"age":[{"id":{"@type":"g:Int64","@value":11},"value":{"@type":"g:Int32","@value":35}}]}}
 ----
 
-At a glance, one can see that this is not a valid JSON document. While that may seem incorrect, there is a reason. The
-"graph" format is designed by default to be splittable, such that distributed systems like Spark can easily divide the
-a GraphSON file for processing. If this data were represented as an "array of vertices" with square brackets at the
+At a glance, one can see that this is not a valid JSON document. While that form may seem incorrect, there is a reason.
+The "graph" format is designed by default to be splittable, such that distributed systems like Spark can easily divide
+the GraphSON file for processing. If this data were represented as an "array of vertices" with square brackets at the
 beginning and end of the file, the format would be less conducive to fit that purpose. It is possible to change this
 behavior by building the `GraphSONWriter` with the `wrapAdjacencyList` setting set to `true`, in which case the output
 will be a valid JSON document that looks like this:
@@ -407,78 +545,6 @@ use cases for it were limited. <<graphson-2d0,GraphSON Version 2.0>> attempts to
 {
   "key" : "since",
   "value" : 2009
-}
-----
-
-==== StarGraph
-
-[source,json]
-----
-{
-  "id" : 1,
-  "label" : "person",
-  "outE" : {
-    "uses" : [ {
-      "id" : 16,
-      "inV" : 11,
-      "properties" : {
-        "skill" : 5
-      }
-    }, {
-      "id" : 15,
-      "inV" : 10,
-      "properties" : {
-        "skill" : 4
-      }
-    } ],
-    "develops" : [ {
-      "id" : 13,
-      "inV" : 10,
-      "properties" : {
-        "since" : 2009
-      }
-    }, {
-      "id" : 14,
-      "inV" : 11,
-      "properties" : {
-        "since" : 2010
-      }
-    } ]
-  },
-  "properties" : {
-    "name" : [ {
-      "id" : 0,
-      "value" : "marko"
-    } ],
-    "location" : [ {
-      "id" : 6,
-      "value" : "san diego",
-      "properties" : {
-        "startTime" : 1997,
-        "endTime" : 2001
-      }
-    }, {
-      "id" : 7,
-      "value" : "santa cruz",
-      "properties" : {
-        "startTime" : 2001,
-        "endTime" : 2004
-      }
-    }, {
-      "id" : 8,
-      "value" : "brussels",
-      "properties" : {
-        "startTime" : 2004,
-        "endTime" : 2005
-      }
-    }, {
-      "id" : 9,
-      "value" : "santa fe",
-      "properties" : {
-        "startTime" : 2005
-      }
-    } ]
-  }
 }
 ----
 
@@ -803,288 +869,6 @@ use cases for it were limited. <<graphson-2d0,GraphSON Version 2.0>> attempts to
 }
 ----
 
-==== Tree
-
-[source,json]
-----
-{
-  "1" : {
-    "key" : {
-      "id" : 1,
-      "label" : "person",
-      "type" : "vertex",
-      "properties" : {
-        "name" : [ {
-          "id" : 0,
-          "value" : "marko"
-        } ],
-        "location" : [ {
-          "id" : 6,
-          "value" : "san diego",
-          "properties" : {
-            "startTime" : 1997,
-            "endTime" : 2001
-          }
-        }, {
-          "id" : 7,
-          "value" : "santa cruz",
-          "properties" : {
-            "startTime" : 2001,
-            "endTime" : 2004
-          }
-        }, {
-          "id" : 8,
-          "value" : "brussels",
-          "properties" : {
-            "startTime" : 2004,
-            "endTime" : 2005
-          }
-        }, {
-          "id" : 9,
-          "value" : "santa fe",
-          "properties" : {
-            "startTime" : 2005
-          }
-        } ]
-      }
-    },
-    "value" : {
-      "10" : {
-        "key" : {
-          "id" : 10,
-          "label" : "software",
-          "type" : "vertex",
-          "properties" : {
-            "name" : [ {
-              "id" : 4,
-              "value" : "gremlin"
-            } ]
-          }
-        },
-        "value" : {
-          "11" : {
-            "key" : {
-              "id" : 11,
-              "label" : "software",
-              "type" : "vertex",
-              "properties" : {
-                "name" : [ {
-                  "id" : 5,
-                  "value" : "tinkergraph"
-                } ]
-              }
-            },
-            "value" : { }
-          }
-        }
-      }
-    }
-  },
-  "7" : {
-    "key" : {
-      "id" : 7,
-      "label" : "person",
-      "type" : "vertex",
-      "properties" : {
-        "name" : [ {
-          "id" : 1,
-          "value" : "stephen"
-        } ],
-        "location" : [ {
-          "id" : 10,
-          "value" : "centreville",
-          "properties" : {
-            "startTime" : 1990,
-            "endTime" : 2000
-          }
-        }, {
-          "id" : 11,
-          "value" : "dulles",
-          "properties" : {
-            "startTime" : 2000,
-            "endTime" : 2006
-          }
-        }, {
-          "id" : 12,
-          "value" : "purcellville",
-          "properties" : {
-            "startTime" : 2006
-          }
-        } ]
-      }
-    },
-    "value" : {
-      "10" : {
-        "key" : {
-          "id" : 10,
-          "label" : "software",
-          "type" : "vertex",
-          "properties" : {
-            "name" : [ {
-              "id" : 4,
-              "value" : "gremlin"
-            } ]
-          }
-        },
-        "value" : {
-          "11" : {
-            "key" : {
-              "id" : 11,
-              "label" : "software",
-              "type" : "vertex",
-              "properties" : {
-                "name" : [ {
-                  "id" : 5,
-                  "value" : "tinkergraph"
-                } ]
-              }
-            },
-            "value" : { }
-          }
-        }
-      }
-    }
-  },
-  "8" : {
-    "key" : {
-      "id" : 8,
-      "label" : "person",
-      "type" : "vertex",
-      "properties" : {
-        "name" : [ {
-          "id" : 2,
-          "value" : "matthias"
-        } ],
-        "location" : [ {
-          "id" : 13,
-          "value" : "bremen",
-          "properties" : {
-            "startTime" : 2004,
-            "endTime" : 2007
-          }
-        }, {
-          "id" : 14,
-          "value" : "baltimore",
-          "properties" : {
-            "startTime" : 2007,
-            "endTime" : 2011
-          }
-        }, {
-          "id" : 15,
-          "value" : "oakland",
-          "properties" : {
-            "startTime" : 2011,
-            "endTime" : 2014
-          }
-        }, {
-          "id" : 16,
-          "value" : "seattle",
-          "properties" : {
-            "startTime" : 2014
-          }
-        } ]
-      }
-    },
-    "value" : {
-      "10" : {
-        "key" : {
-          "id" : 10,
-          "label" : "software",
-          "type" : "vertex",
-          "properties" : {
-            "name" : [ {
-              "id" : 4,
-              "value" : "gremlin"
-            } ]
-          }
-        },
-        "value" : {
-          "11" : {
-            "key" : {
-              "id" : 11,
-              "label" : "software",
-              "type" : "vertex",
-              "properties" : {
-                "name" : [ {
-                  "id" : 5,
-                  "value" : "tinkergraph"
-                } ]
-              }
-            },
-            "value" : { }
-          }
-        }
-      }
-    }
-  },
-  "9" : {
-    "key" : {
-      "id" : 9,
-      "label" : "person",
-      "type" : "vertex",
-      "properties" : {
-        "name" : [ {
-          "id" : 3,
-          "value" : "daniel"
-        } ],
-        "location" : [ {
-          "id" : 17,
-          "value" : "spremberg",
-          "properties" : {
-            "startTime" : 1982,
-            "endTime" : 2005
-          }
-        }, {
-          "id" : 18,
-          "value" : "kaiserslautern",
-          "properties" : {
-            "startTime" : 2005,
-            "endTime" : 2009
-          }
-        }, {
-          "id" : 19,
-          "value" : "aachen",
-          "properties" : {
-            "startTime" : 2009
-          }
-        } ]
-      }
-    },
-    "value" : {
-      "10" : {
-        "key" : {
-          "id" : 10,
-          "label" : "software",
-          "type" : "vertex",
-          "properties" : {
-            "name" : [ {
-              "id" : 4,
-              "value" : "gremlin"
-            } ]
-          }
-        },
-        "value" : {
-          "11" : {
-            "key" : {
-              "id" : 11,
-              "label" : "software",
-              "type" : "vertex",
-              "properties" : {
-                "name" : [ {
-                  "id" : 5,
-                  "value" : "tinkergraph"
-                } ]
-              }
-            },
-            "value" : { }
-          }
-        }
-      }
-    }
-  }
-}
-----
-
 ==== Vertex
 
 [source,json]
@@ -1151,7 +935,7 @@ The following `RequestMessage` is an example of the response that should be made
 [source,json]
 ----
 {
-  "requestId" : "edf0a0b5-1d05-4b0f-96c7-3feaaf6ec45a",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "authentication",
   "processor" : "",
   "args" : {
@@ -1168,7 +952,7 @@ The following `RequestMessage` is an example of a simple session request for a s
 [source,json]
 ----
 {
-  "requestId" : "f865b4dc-65f8-4732-a2f1-3bb1ae8823ef",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "eval",
   "processor" : "session",
   "args" : {
@@ -1182,14 +966,14 @@ The following `RequestMessage` is an example of a simple session request for a s
 }
 ----
 
-==== Session Eval
+==== Session Eval Aliased
 
 The following `RequestMessage` is an example of a session request for a script evaluation with an alias that binds the `TraversalSource` of "g" to "social".
 
 [source,json]
 ----
 {
-  "requestId" : "5a8408fc-08e4-409f-ac85-10e3afe0b8d0",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "eval",
   "processor" : "session",
   "args" : {
@@ -1213,7 +997,7 @@ The following `RequestMessage` is an example of a request to close a session.
 [source,json]
 ----
 {
-  "requestId" : "920b91b4-4ea6-4a35-80e6-a45c4e39830f",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "close",
   "processor" : "session",
   "args" : {
@@ -1229,7 +1013,7 @@ The following `RequestMessage` is an example of a simple sessionless request for
 [source,json]
 ----
 {
-  "requestId" : "02d6325b-320c-42a7-9bb5-149db1cefbf7",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "eval",
   "processor" : "",
   "args" : {
@@ -1242,14 +1026,14 @@ The following `RequestMessage` is an example of a simple sessionless request for
 }
 ----
 
-==== Sessionless Eval
+==== Sessionless Eval Aliased
 
 The following `RequestMessage` is an example of a sessionless request for a script evaluation with an alias that binds the `TraversalSource` of "g" to "social".
 
 [source,json]
 ----
 {
-  "requestId" : "1fdf1159-cd7f-474b-ab2a-46d291095d78",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "eval",
   "processor" : "",
   "args" : {
@@ -1346,110 +1130,6 @@ The following `ResponseMessage` is a typical example of the typical successful r
 }
 ----
 
-
-=== Time
-
-==== Duration
-
-The following example is a `Duration` of five days.
-
-[source,json]
-----
-"PT120H"
-----
-
-==== Instant
-
-[source,json]
-----
-"2018-01-19T13:30:19.931Z"
-----
-
-==== LocalDate
-
-[source,json]
-----
-"2016-01-01"
-----
-
-==== LocalDateTime
-
-[source,json]
-----
-"2016-01-01T12:30"
-----
-
-==== LocalTime
-
-[source,json]
-----
-"12:30:45"
-----
-
-==== MonthDay
-
-[source,json]
-----
-"--01-01"
-----
-
-==== OffsetDateTime
-
-[source,json]
-----
-"2018-01-19T08:30:19.935-05:00"
-----
-
-==== OffsetTime
-
-[source,json]
-----
-"08:30:19.935-05:00"
-----
-
-==== Period
-
-The following example is a `Period` of one year, six months and fifteen days.
-
-[source,json]
-----
-"P1Y6M15D"
-----
-
-==== Year
-
-The following example is of the `Year` "2016".
-
-[source,json]
-----
-"2016"
-----
-
-==== YearMonth
-
-The following example is a `YearMonth` of "June 2016"
-
-[source,json]
-----
-"2016-06"
-----
-
-==== ZonedDateTime
-
-[source,json]
-----
-"2018-01-19T08:30:19.937-05:00[America/New_York]"
-----
-
-==== ZoneOffset
-
-The following example is a `ZoneOffset` of three hours, six minutes, and nine seconds.
-
-[source,json]
-----
-"+03:06:09"
-----
-
 [[graphson-2d0]]
 == Version 2.0
 
@@ -1485,7 +1165,7 @@ types. By default, TinkerPop types will have the namespace "g" (or "gx" for "ext
 ----
 {
   "@type" : "g:Date",
-  "@value" : 1516368624530
+  "@value" : 1481750076295
 }
 ----
 
@@ -1537,7 +1217,2753 @@ While the `@value` is expected to be a JSON number, it might also be a `String` 
 ----
 {
   "@type" : "g:Timestamp",
-  "@value" : 1516368624533
+  "@value" : 1481750076295
+}
+----
+
+==== UUID
+
+[source,json]
+----
+{
+  "@type" : "g:UUID",
+  "@value" : "41d2e28a-20a4-4ab0-b379-d810dede3786"
+}
+----
+
+
+=== Graph Structure
+
+==== Edge
+
+[source,json]
+----
+{
+  "@type" : "g:Edge",
+  "@value" : {
+    "id" : {
+      "@type" : "g:Int32",
+      "@value" : 13
+    },
+    "label" : "develops",
+    "inVLabel" : "software",
+    "outVLabel" : "person",
+    "inV" : {
+      "@type" : "g:Int32",
+      "@value" : 10
+    },
+    "outV" : {
+      "@type" : "g:Int32",
+      "@value" : 1
+    },
+    "properties" : {
+      "since" : {
+        "@type" : "g:Int32",
+        "@value" : 2009
+      }
+    }
+  }
+}
+----
+
+==== Path
+
+[source,json]
+----
+{
+  "@type" : "g:Path",
+  "@value" : {
+    "labels" : [ [ ], [ ], [ ] ],
+    "objects" : [ {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "label" : "person"
+      }
+    }, {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        },
+        "label" : "software"
+        "label" : "software",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 4
+              },
+              "value" : "gremlin",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 10
+              },
+              "label" : "name"
+            }
+          } ]
+        }
+      }
+    }, {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 11
+        },
+        "label" : "software"
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 5
+              },
+              "value" : "tinkergraph",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 11
+              },
+              "label" : "name"
+            }
+          } ]
+        }
+      }
+    } ]
+  }
+}
+----
+
+==== Property
+
+[source,json]
+----
+{
+  "@type" : "g:Property",
+  "@value" : {
+    "key" : "since",
+    "value" : {
+      "@type" : "g:Int32",
+      "@value" : 2009
+    },
+    "element" : {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 13
+        },
+        "label" : "develops",
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        }
+      }
+    }
+  }
+}
+----
+
+==== StarGraph
+
+[source,json]
+----
+{
+  "starVertex" : {
+    "@type" : "g:Vertex",
+    "@value" : {
+      "id" : {
+        "@type" : "g:Int32",
+        "@value" : 1
+      },
+      "label" : "person",
+      "properties" : {
+        "name" : [ {
+          "@type" : "g:VertexProperty",
+          "@value" : {
+            "id" : {
+              "@type" : "g:Int64",
+              "@value" : 0
+            },
+            "value" : "marko",
+            "vertex" : {
+              "@type" : "g:Int32",
+              "@value" : 1
+            },
+            "label" : "name"
+          }
+        } ],
+        "location" : [ {
+          "@type" : "g:VertexProperty",
+          "@value" : {
+            "id" : {
+              "@type" : "g:Int64",
+              "@value" : 6
+            },
+            "value" : "san diego",
+            "vertex" : {
+              "@type" : "g:Int32",
+              "@value" : 1
+            },
+            "label" : "location",
+            "properties" : {
+              "startTime" : {
+                "@type" : "g:Int32",
+                "@value" : 1997
+              },
+              "endTime" : {
+                "@type" : "g:Int32",
+                "@value" : 2001
+              }
+            }
+          }
+        }, {
+          "@type" : "g:VertexProperty",
+          "@value" : {
+            "id" : {
+              "@type" : "g:Int64",
+              "@value" : 7
+            },
+            "value" : "santa cruz",
+            "vertex" : {
+              "@type" : "g:Int32",
+              "@value" : 1
+            },
+            "label" : "location",
+            "properties" : {
+              "startTime" : {
+                "@type" : "g:Int32",
+                "@value" : 2001
+              },
+              "endTime" : {
+                "@type" : "g:Int32",
+                "@value" : 2004
+              }
+            }
+          }
+        }, {
+          "@type" : "g:VertexProperty",
+          "@value" : {
+            "id" : {
+              "@type" : "g:Int64",
+              "@value" : 8
+            },
+            "value" : "brussels",
+            "vertex" : {
+              "@type" : "g:Int32",
+              "@value" : 1
+            },
+            "label" : "location",
+            "properties" : {
+              "startTime" : {
+                "@type" : "g:Int32",
+                "@value" : 2004
+              },
+              "endTime" : {
+                "@type" : "g:Int32",
+                "@value" : 2005
+              }
+            }
+          }
+        }, {
+          "@type" : "g:VertexProperty",
+          "@value" : {
+            "id" : {
+              "@type" : "g:Int64",
+              "@value" : 9
+            },
+            "value" : "santa fe",
+            "vertex" : {
+              "@type" : "g:Int32",
+              "@value" : 1
+            },
+            "label" : "location",
+            "properties" : {
+              "startTime" : {
+                "@type" : "g:Int32",
+                "@value" : 2005
+              }
+            }
+          }
+        } ]
+      }
+    }
+  }
+}
+----
+
+==== TinkerGraph
+
+`TinkerGraph` has a custom serializer that is registered as part of the `TinkerIoRegistry`.
+
+[source,json]
+----
+{
+  "@type" : "tinker:graph",
+  "@value" : {
+    "vertices" : [ {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "label" : "person",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 0
+              },
+              "value" : "marko",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "name"
+            }
+          } ],
+          "location" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 6
+              },
+              "value" : "san diego",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 1997
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2001
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 7
+              },
+              "value" : "santa cruz",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2001
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2004
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 8
+              },
+              "value" : "brussels",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2004
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 9
+              },
+              "value" : "santa fe",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                }
+              }
+            }
+          } ]
+        }
+      }
+    }, {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 7
+        },
+        "label" : "person",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 1
+              },
+              "value" : "stephen",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 7
+              },
+              "label" : "name"
+            }
+          } ],
+          "location" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 10
+              },
+              "value" : "centreville",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 7
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 1990
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2000
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 11
+              },
+              "value" : "dulles",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 7
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2000
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2006
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 12
+              },
+              "value" : "purcellville",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 7
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2006
+                }
+              }
+            }
+          } ]
+        }
+      }
+    }, {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 8
+        },
+        "label" : "person",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 2
+              },
+              "value" : "matthias",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 8
+              },
+              "label" : "name"
+            }
+          } ],
+          "location" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 13
+              },
+              "value" : "bremen",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 8
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2004
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2007
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 14
+              },
+              "value" : "baltimore",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 8
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2007
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2011
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 15
+              },
+              "value" : "oakland",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 8
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2011
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2014
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 16
+              },
+              "value" : "seattle",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 8
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2014
+                }
+              }
+            }
+          } ]
+        }
+      }
+    }, {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 9
+        },
+        "label" : "person",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 3
+              },
+              "value" : "daniel",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 9
+              },
+              "label" : "name"
+            }
+          } ],
+          "location" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 17
+              },
+              "value" : "spremberg",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 9
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 1982
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 18
+              },
+              "value" : "kaiserslautern",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 9
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2009
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 19
+              },
+              "value" : "aachen",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 9
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2009
+                }
+              }
+            }
+          } ]
+        }
+      }
+    }, {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        },
+        "label" : "software",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 4
+              },
+              "value" : "gremlin",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 10
+              },
+              "label" : "name"
+            }
+          } ]
+        }
+      }
+    }, {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 11
+        },
+        "label" : "software",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 5
+              },
+              "value" : "tinkergraph",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 11
+              },
+              "label" : "name"
+            }
+          } ]
+        }
+      }
+    } ],
+    "edges" : [ {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 13
+        },
+        "label" : "develops",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "properties" : {
+          "since" : {
+            "@type" : "g:Int32",
+            "@value" : 2009
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 14
+        },
+        "label" : "develops",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 11
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "properties" : {
+          "since" : {
+            "@type" : "g:Int32",
+            "@value" : 2010
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 15
+        },
+        "label" : "uses",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "properties" : {
+          "skill" : {
+            "@type" : "g:Int32",
+            "@value" : 4
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 16
+        },
+        "label" : "uses",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 11
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "properties" : {
+          "skill" : {
+            "@type" : "g:Int32",
+            "@value" : 5
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 17
+        },
+        "label" : "develops",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 7
+        },
+        "properties" : {
+          "since" : {
+            "@type" : "g:Int32",
+            "@value" : 2010
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 18
+        },
+        "label" : "develops",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 11
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 7
+        },
+        "properties" : {
+          "since" : {
+            "@type" : "g:Int32",
+            "@value" : 2011
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 19
+        },
+        "label" : "uses",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 7
+        },
+        "properties" : {
+          "skill" : {
+            "@type" : "g:Int32",
+            "@value" : 5
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 20
+        },
+        "label" : "uses",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 11
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 7
+        },
+        "properties" : {
+          "skill" : {
+            "@type" : "g:Int32",
+            "@value" : 4
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 21
+        },
+        "label" : "develops",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 8
+        },
+        "properties" : {
+          "since" : {
+            "@type" : "g:Int32",
+            "@value" : 2012
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 22
+        },
+        "label" : "uses",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 8
+        },
+        "properties" : {
+          "skill" : {
+            "@type" : "g:Int32",
+            "@value" : 3
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 23
+        },
+        "label" : "uses",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 11
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 8
+        },
+        "properties" : {
+          "skill" : {
+            "@type" : "g:Int32",
+            "@value" : 3
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 24
+        },
+        "label" : "uses",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 9
+        },
+        "properties" : {
+          "skill" : {
+            "@type" : "g:Int32",
+            "@value" : 5
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 25
+        },
+        "label" : "uses",
+        "inVLabel" : "software",
+        "outVLabel" : "person",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 11
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 9
+        },
+        "properties" : {
+          "skill" : {
+            "@type" : "g:Int32",
+            "@value" : 3
+          }
+        }
+      }
+    }, {
+      "@type" : "g:Edge",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 26
+        },
+        "label" : "traverses",
+        "inVLabel" : "software",
+        "outVLabel" : "software",
+        "inV" : {
+          "@type" : "g:Int32",
+          "@value" : 11
+        },
+        "outV" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        }
+      }
+    } ]
+  }
+}
+----
+
+==== Tree
+
+[source,json]
+----
+{
+  "@type" : "g:Tree",
+  "@value" : [ {
+    "key" : {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "label" : "person",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 0
+              },
+              "value" : "marko",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "name"
+            }
+          } ],
+          "location" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 6
+              },
+              "value" : "san diego",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 1997
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2001
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 7
+              },
+              "value" : "santa cruz",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2001
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2004
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 8
+              },
+              "value" : "brussels",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2004
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 9
+              },
+              "value" : "santa fe",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                }
+              }
+            }
+          } ]
+        }
+      }
+    },
+    "value" : {
+      "@type" : "g:Tree",
+      "@value" : [ {
+        "key" : {
+          "@type" : "g:Vertex",
+          "@value" : {
+            "id" : {
+              "@type" : "g:Int32",
+              "@value" : 10
+            },
+            "label" : "software",
+            "properties" : {
+              "name" : [ {
+                "@type" : "g:VertexProperty",
+                "@value" : {
+                  "id" : {
+                    "@type" : "g:Int64",
+                    "@value" : 4
+                  },
+                  "value" : "gremlin",
+                  "vertex" : {
+                    "@type" : "g:Int32",
+                    "@value" : 10
+                  },
+                  "label" : "name"
+                }
+              } ]
+            }
+          }
+        },
+        "value" : {
+          "@type" : "g:Tree",
+          "@value" : [ {
+            "key" : {
+              "@type" : "g:Vertex",
+              "@value" : {
+                "id" : {
+                  "@type" : "g:Int32",
+                  "@value" : 11
+                },
+                "label" : "software",
+                "properties" : {
+                  "name" : [ {
+                    "@type" : "g:VertexProperty",
+                    "@value" : {
+                      "id" : {
+                        "@type" : "g:Int64",
+                        "@value" : 5
+                      },
+                      "value" : "tinkergraph",
+                      "vertex" : {
+                        "@type" : "g:Int32",
+                        "@value" : 11
+                      },
+                      "label" : "name"
+                    }
+                  } ]
+                }
+              }
+            },
+            "value" : {
+              "@type" : "g:Tree",
+              "@value" : [ ]
+            }
+          } ]
+        }
+      } ]
+    }
+  } ]
+}
+----
+
+==== Vertex
+
+[source,json]
+----
+{
+  "@type" : "g:Vertex",
+  "@value" : {
+    "id" : {
+      "@type" : "g:Int32",
+      "@value" : 1
+    },
+    "label" : "person",
+    "properties" : {
+      "name" : [ {
+        "@type" : "g:VertexProperty",
+        "@value" : {
+          "id" : {
+            "@type" : "g:Int64",
+            "@value" : 0
+          },
+          "value" : "marko",
+          "vertex" : {
+            "@type" : "g:Int32",
+            "@value" : 1
+          },
+          "label" : "name"
+        }
+      } ],
+      "location" : [ {
+        "@type" : "g:VertexProperty",
+        "@value" : {
+          "id" : {
+            "@type" : "g:Int64",
+            "@value" : 6
+          },
+          "value" : "san diego",
+          "vertex" : {
+            "@type" : "g:Int32",
+            "@value" : 1
+          },
+          "label" : "location",
+          "properties" : {
+            "startTime" : {
+              "@type" : "g:Int32",
+              "@value" : 1997
+            },
+            "endTime" : {
+              "@type" : "g:Int32",
+              "@value" : 2001
+            }
+          }
+        }
+      }, {
+        "@type" : "g:VertexProperty",
+        "@value" : {
+          "id" : {
+            "@type" : "g:Int64",
+            "@value" : 7
+          },
+          "value" : "santa cruz",
+          "vertex" : {
+            "@type" : "g:Int32",
+            "@value" : 1
+          },
+          "label" : "location",
+          "properties" : {
+            "startTime" : {
+              "@type" : "g:Int32",
+              "@value" : 2001
+            },
+            "endTime" : {
+              "@type" : "g:Int32",
+              "@value" : 2004
+            }
+          }
+        }
+      }, {
+        "@type" : "g:VertexProperty",
+        "@value" : {
+          "id" : {
+            "@type" : "g:Int64",
+            "@value" : 8
+          },
+          "value" : "brussels",
+          "vertex" : {
+            "@type" : "g:Int32",
+            "@value" : 1
+          },
+          "label" : "location",
+          "properties" : {
+            "startTime" : {
+              "@type" : "g:Int32",
+              "@value" : 2004
+            },
+            "endTime" : {
+              "@type" : "g:Int32",
+              "@value" : 2005
+            }
+          }
+        }
+      }, {
+        "@type" : "g:VertexProperty",
+        "@value" : {
+          "id" : {
+            "@type" : "g:Int64",
+            "@value" : 9
+          },
+          "value" : "santa fe",
+          "vertex" : {
+            "@type" : "g:Int32",
+            "@value" : 1
+          },
+          "label" : "location",
+          "properties" : {
+            "startTime" : {
+              "@type" : "g:Int32",
+              "@value" : 2005
+            }
+          }
+        }
+      } ]
+    }
+  }
+}
+----
+
+==== VertexProperty
+
+[source,json]
+----
+{
+  "@type" : "g:VertexProperty",
+  "@value" : {
+    "id" : {
+      "@type" : "g:Int64",
+      "@value" : 0
+    },
+    "value" : "marko",
+    "vertex" : {
+      "@type" : "g:Int32",
+      "@value" : 1
+    },
+    "label" : "name"
+  }
+}
+----
+
+
+=== Graph Process
+
+==== Barrier
+
+[source,json]
+----
+{
+  "@type" : "g:Barrier",
+  "@value" : "normSack"
+}
+----
+
+==== Binding
+
+A "Binding" refers to a `Bytecode.Binding`.
+
+[source,json]
+----
+{
+  "@type" : "g:Binding",
+  "@value" : {
+    "key" : "x",
+    "value" : {
+      "@type" : "g:Int32",
+      "@value" : 1
+    }
+  }
+}
+----
+
+==== Bytecode
+
+The following `Bytecode` example represents the traversal of `g.V().hasLabel('person').out().in().tree()`. Obviously the serialized `Bytecode` woudl be quite different for the endless variations of commands that could be used together in the Gremlin language.
+
+[source,json]
+----
+{
+  "@type" : "g:Bytecode",
+  "@value" : {
+    "step" : [ [ "V" ], [ "hasLabel", "person" ], [ "out" ], [ "in" ], [ "tree" ] ]
+  }
+}
+----
+
+==== Cardinality
+
+[source,json]
+----
+{
+  "@type" : "g:Cardinality",
+  "@value" : "list"
+}
+----
+
+==== Column
+
+[source,json]
+----
+{
+  "@type" : "g:Column",
+  "@value" : "keys"
+}
+----
+
+==== Direction
+
+[source,json]
+----
+{
+  "@type" : "g:Direction",
+  "@value" : "OUT"
+}
+----
+
+==== Operator
+
+[source,json]
+----
+{
+  "@type" : "g:Operator",
+  "@value" : "sum"
+}
+----
+
+==== Order
+
+[source,json]
+----
+{
+  "@type" : "g:Order",
+  "@value" : "shuffle"
+}
+----
+
+==== Pick
+
+[source,json]
+----
+{
+  "@type" : "g:Pick",
+  "@value" : "any"
+}
+----
+
+==== Pop
+
+[source,json]
+----
+{
+  "@type" : "g:Pop",
+  "@value" : "all"
+}
+----
+
+==== Lambda
+
+[source,json]
+----
+{
+  "@type" : "g:Lambda",
+  "@value" : {
+    "script" : "{ it.get() }",
+    "language" : "gremlin-groovy",
+    "arguments" : 1
+  }
+}
+----
+
+==== Metrics
+
+[source,json]
+----
+{
+  "@type" : "g:Metrics",
+  "@value" : {
+    "dur" : {
+      "@type" : "g:Double",
+      "@value" : 100.0
+    },
+    "counts" : {
+      "traverserCount" : {
+        "@type" : "g:Int64",
+        "@value" : 4
+      },
+      "elementCount" : {
+        "@type" : "g:Int64",
+        "@value" : 4
+      }
+    },
+    "name" : "TinkerGraphStep(vertex,[~label.eq(person)])",
+    "annotations" : {
+      "percentDur" : {
+        "@type" : "g:Double",
+        "@value" : 25.0
+      }
+    },
+    "id" : "7.0.0()",
+    "metrics" : [ {
+      "@type" : "g:Metrics",
+      "@value" : {
+        "dur" : {
+          "@type" : "g:Double",
+          "@value" : 100.0
+        },
+        "counts" : {
+          "traverserCount" : {
+            "@type" : "g:Int64",
+            "@value" : 7
+          },
+          "elementCount" : {
+            "@type" : "g:Int64",
+            "@value" : 7
+          }
+        },
+        "name" : "VertexStep(OUT,vertex)",
+        "annotations" : {
+          "percentDur" : {
+            "@type" : "g:Double",
+            "@value" : 25.0
+          }
+        },
+        "id" : "3.0.0()"
+      }
+    } ]
+  }
+}
+----
+
+==== P
+
+[source,json]
+----
+{
+  "@type" : "g:P",
+  "@value" : {
+    "predicate" : "gt",
+    "value" : {
+      "@type" : "g:Int32",
+      "@value" : 0
+    }
+  }
+}
+----
+
+==== P within
+
+[source,json]
+----
+{
+  "@type" : "g:P",
+  "@value" : {
+    "predicate" : "within",
+    "value" : [ {
+      "@type" : "g:Int32",
+      "@value" : 1
+    } ]
+  }
+}
+----
+
+==== P without
+
+[source,json]
+----
+{
+  "@type" : "g:P",
+  "@value" : {
+    "predicate" : "without",
+    "value" : [ {
+      "@type" : "g:Int32",
+      "@value" : 1
+    }, {
+      "@type" : "g:Int32",
+      "@value" : 2
+    } ]
+  }
+}
+----
+
+==== P and
+
+[source,json]
+----
+{
+  "@type" : "g:P",
+  "@value" : {
+    "predicate" : "and",
+    "value" : [ {
+      "@type" : "g:P",
+      "@value" : {
+        "predicate" : "gt",
+        "value" : {
+          "@type" : "g:Int32",
+          "@value" : 0
+        }
+      }
+    }, {
+      "@type" : "g:P",
+      "@value" : {
+        "predicate" : "lt",
+        "value" : {
+          "@type" : "g:Int32",
+          "@value" : 10
+        }
+      }
+    } ]
+  }
+}
+----
+
+==== P or
+
+[source,json]
+----
+{
+  "@type" : "g:P",
+  "@value" : {
+    "predicate" : "or",
+    "value" : [ {
+      "@type" : "g:P",
+      "@value" : {
+        "predicate" : "gt",
+        "value" : {
+          "@type" : "g:Int32",
+          "@value" : 0
+        }
+      }
+    }, {
+      "@type" : "g:P",
+      "@value" : {
+        "predicate" : "within",
+        "value" : [ {
+          "@type" : "g:Int32",
+          "@value" : -1
+        }, {
+          "@type" : "g:Int32",
+          "@value" : -10
+        }, {
+          "@type" : "g:Int32",
+          "@value" : -100
+        } ]
+      }
+    } ]
+  }
+}
+----
+
+==== Scope
+
+[source,json]
+----
+{
+  "@type" : "g:Scope",
+  "@value" : "local"
+}
+----
+
+==== T
+
+[source,json]
+----
+{
+  "@type" : "g:T",
+  "@value" : "label"
+}
+----
+
+==== TraversalMetrics
+
+[source,json]
+----
+{
+  "@type" : "g:TraversalMetrics",
+  "@value" : {
+    "dur" : {
+      "@type" : "g:Double",
+      "@value" : 0.004
+    },
+    "metrics" : [ {
+      "@type" : "g:Metrics",
+      "@value" : {
+        "dur" : {
+          "@type" : "g:Double",
+          "@value" : 100.0
+        },
+        "counts" : {
+          "traverserCount" : {
+            "@type" : "g:Int64",
+            "@value" : 4
+          },
+          "elementCount" : {
+            "@type" : "g:Int64",
+            "@value" : 4
+          }
+        },
+        "name" : "TinkerGraphStep(vertex,[~label.eq(person)])",
+        "annotations" : {
+          "percentDur" : {
+            "@type" : "g:Double",
+            "@value" : 25.0
+          }
+        },
+        "id" : "7.0.0()"
+      }
+    }, {
+      "@type" : "g:Metrics",
+      "@value" : {
+        "dur" : {
+          "@type" : "g:Double",
+          "@value" : 100.0
+        },
+        "counts" : {
+          "traverserCount" : {
+            "@type" : "g:Int64",
+            "@value" : 13
+          },
+          "elementCount" : {
+            "@type" : "g:Int64",
+            "@value" : 13
+          }
+        },
+        "name" : "VertexStep(OUT,vertex)",
+        "annotations" : {
+          "percentDur" : {
+            "@type" : "g:Double",
+            "@value" : 25.0
+          }
+        },
+        "id" : "2.0.0()"
+      }
+    }, {
+      "@type" : "g:Metrics",
+      "@value" : {
+        "dur" : {
+          "@type" : "g:Double",
+          "@value" : 100.0
+        },
+        "counts" : {
+          "traverserCount" : {
+            "@type" : "g:Int64",
+            "@value" : 7
+          },
+          "elementCount" : {
+            "@type" : "g:Int64",
+            "@value" : 7
+          }
+        },
+        "name" : "VertexStep(OUT,vertex)",
+        "annotations" : {
+          "percentDur" : {
+            "@type" : "g:Double",
+            "@value" : 25.0
+          }
+        },
+        "id" : "3.0.0()"
+      }
+    }, {
+      "@type" : "g:Metrics",
+      "@value" : {
+        "dur" : {
+          "@type" : "g:Double",
+          "@value" : 100.0
+        },
+        "counts" : {
+          "traverserCount" : {
+            "@type" : "g:Int64",
+            "@value" : 1
+          },
+          "elementCount" : {
+            "@type" : "g:Int64",
+            "@value" : 1
+          }
+        },
+        "name" : "TreeStep",
+        "annotations" : {
+          "percentDur" : {
+            "@type" : "g:Double",
+            "@value" : 25.0
+          }
+        },
+        "id" : "4.0.0()"
+      }
+    } ]
+  }
+}
+----
+
+==== Traverser
+
+[source,json]
+----
+{
+  "@type" : "g:Traverser",
+  "@value" : {
+    "bulk" : {
+      "@type" : "g:Int64",
+      "@value" : 1
+    },
+    "value" : {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "label" : "person",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 0
+              },
+              "value" : "marko",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "name"
+            }
+          } ],
+          "location" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 6
+              },
+              "value" : "san diego",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 1997
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2001
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 7
+              },
+              "value" : "santa cruz",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2001
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2004
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 8
+              },
+              "value" : "brussels",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2004
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 9
+              },
+              "value" : "santa fe",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                }
+              }
+            }
+          } ]
+        }
+      }
+    }
+  }
+}
+----
+
+
+=== RequestMessage
+
+==== Authentication Response
+
+The following `RequestMessage` is an example of the response that should be made to a SASL-based authentication challenge.
+
+[source,json]
+----
+{
+  "requestId" : {
+    "@type" : "g:UUID",
+    "@value" : "cb682578-9d92-4499-9ebc-5c6aa73c5397"
+  },
+  "op" : "authentication",
+  "processor" : "",
+  "args" : {
+    "saslMechanism" : "PLAIN",
+    "sasl" : "AHN0ZXBocGhlbgBwYXNzd29yZA=="
+  }
+}
+----
+
+==== Session Eval
+
+The following `RequestMessage` is an example of a simple session request for a script evaluation with parameters.
+
+[source,json]
+----
+{
+  "requestId" : {
+    "@type" : "g:UUID",
+    "@value" : "cb682578-9d92-4499-9ebc-5c6aa73c5397"
+  },
+  "op" : "eval",
+  "processor" : "session",
+  "args" : {
+    "gremlin" : "g.V(x)",
+    "language" : "gremlin-groovy",
+    "session" : {
+      "@type" : "g:UUID",
+      "@value" : "41d2e28a-20a4-4ab0-b379-d810dede3786"
+    },
+    "bindings" : {
+      "x" : {
+        "@type" : "g:Int32",
+        "@value" : 1
+      }
+    }
+  }
+}
+----
+
+==== Session Eval Aliased
+
+The following `RequestMessage` is an example of a session request for a script evaluation with an alias that binds the `TraversalSource` of "g" to "social".
+
+[source,json]
+----
+{
+  "requestId" : {
+    "@type" : "g:UUID",
+    "@value" : "cb682578-9d92-4499-9ebc-5c6aa73c5397"
+  },
+  "op" : "eval",
+  "processor" : "session",
+  "args" : {
+    "gremlin" : "social.V(x)",
+    "language" : "gremlin-groovy",
+    "aliases" : {
+      "g" : "social"
+    },
+    "session" : {
+      "@type" : "g:UUID",
+      "@value" : "41d2e28a-20a4-4ab0-b379-d810dede3786"
+    },
+    "bindings" : {
+      "x" : {
+        "@type" : "g:Int32",
+        "@value" : 1
+      }
+    }
+  }
+}
+----
+
+==== Session Close
+
+The following `RequestMessage` is an example of a request to close a session.
+
+[source,json]
+----
+{
+  "requestId" : {
+    "@type" : "g:UUID",
+    "@value" : "cb682578-9d92-4499-9ebc-5c6aa73c5397"
+  },
+  "op" : "close",
+  "processor" : "session",
+  "args" : {
+    "session" : {
+      "@type" : "g:UUID",
+      "@value" : "41d2e28a-20a4-4ab0-b379-d810dede3786"
+    }
+  }
+}
+----
+
+==== Sessionless Eval
+
+The following `RequestMessage` is an example of a simple sessionless request for a script evaluation with parameters.
+
+[source,json]
+----
+{
+  "requestId" : {
+    "@type" : "g:UUID",
+    "@value" : "cb682578-9d92-4499-9ebc-5c6aa73c5397"
+  },
+  "op" : "eval",
+  "processor" : "",
+  "args" : {
+    "gremlin" : "g.V(x)",
+    "language" : "gremlin-groovy",
+    "bindings" : {
+      "x" : {
+        "@type" : "g:Int32",
+        "@value" : 1
+      }
+    }
+  }
+}
+----
+
+==== Sessionless Eval Aliased
+
+The following `RequestMessage` is an example of a sessionless request for a script evaluation with an alias that binds the `TraversalSource` of "g" to "social".
+
+[source,json]
+----
+{
+  "requestId" : {
+    "@type" : "g:UUID",
+    "@value" : "cb682578-9d92-4499-9ebc-5c6aa73c5397"
+  },
+  "op" : "eval",
+  "processor" : "",
+  "args" : {
+    "gremlin" : "social.V(x)",
+    "language" : "gremlin-groovy",
+    "aliases" : {
+      "g" : "social"
+    },
+    "bindings" : {
+      "x" : {
+        "@type" : "g:Int32",
+        "@value" : 1
+      }
+    }
+  }
+}
+----
+
+=== ResponseMessage
+
+==== Authentication Challenge
+
+When authentication is enabled, an initial request to the server will result in an authentication challenge. The typical response message will appear as follows, but handling it could be different dependending on the SASL implementation (e.g. multiple challenges maybe requested in some cases, but not in the default provided by Gremlin Server).
+
+[source,json]
+----
+{
+  "requestId" : "41d2e28a-20a4-4ab0-b379-d810dede3786",
+  "status" : {
+    "message" : "",
+    "code" : 407,
+    "attributes" : { }
+  },
+  "result" : {
+    "data" : null,
+    "meta" : { }
+  }
+}
+----
+
+==== Standard Result
+
+The following `ResponseMessage` is a typical example of the typical successful response Gremlin Server will return when returning results from a script.
+
+[source,json]
+----
+{
+  "requestId" : "41d2e28a-20a4-4ab0-b379-d810dede3786",
+  "status" : {
+    "message" : "",
+    "code" : 200,
+    "attributes" : { }
+  },
+  "result" : {
+    "data" : [ {
+      "@type" : "g:Vertex",
+      "@value" : {
+        "id" : {
+          "@type" : "g:Int32",
+          "@value" : 1
+        },
+        "label" : "person",
+        "properties" : {
+          "name" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 0
+              },
+              "value" : "marko",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "name"
+            }
+          } ],
+          "location" : [ {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 6
+              },
+              "value" : "san diego",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 1997
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2001
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 7
+              },
+              "value" : "santa cruz",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2001
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2004
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 8
+              },
+              "value" : "brussels",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2004
+                },
+                "endTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                }
+              }
+            }
+          }, {
+            "@type" : "g:VertexProperty",
+            "@value" : {
+              "id" : {
+                "@type" : "g:Int64",
+                "@value" : 9
+              },
+              "value" : "santa fe",
+              "vertex" : {
+                "@type" : "g:Int32",
+                "@value" : 1
+              },
+              "label" : "location",
+              "properties" : {
+                "startTime" : {
+                  "@type" : "g:Int32",
+                  "@value" : 2005
+                }
+              }
+            }
+          } ]
+        }
+      }
+    } ],
+    "meta" : { }
+  }
+}
+----
+
+
+=== Extended
+
+Note that the "extended" types require the addition of the separate `GraphSONXModuleV2d0` module as follows:
+
+[source,java]
+----
+mapper = GraphSONMapper.build().
+                        typeInfo(TypeInfo.PARTIAL_TYPES).
+                        addCustomModule(GraphSONXModuleV2d0.build().create(false)).
+                        version(GraphSONVersion.V2_0).create().createMapper()
+----
+
+==== BigDecimal
+
+[source,json]
+----
+{
+  "@type" : "gx:BigDecimal",
+  "@value" : 123456789987654321123456789987654321
+}
+----
+
+==== BigInteger
+
+[source,json]
+----
+{
+  "@type" : "gx:BigInteger",
+  "@value" : 123456789987654321123456789987654321
+}
+----
+
+==== Byte
+
+[source,json]
+----
+{
+  "@type" : "gx:Byte",
+  "@value" : 1
+}
+----
+
+==== ByteBuffer
+
+[source,json]
+----
+{
+  "@type" : "gx:ByteBuffer",
+  "@value" : "c29tZSBieXRlcyBmb3IgeW91"
+}
+----
+
+==== Char
+
+[source,json]
+----
+{
+  "@type" : "gx:Char",
+  "@value" : "x"
+}
+----
+
+==== Duration
+
+The following example is a `Duration` of five days.
+
+[source,json]
+----
+{
+  "@type" : "gx:Duration",
+  "@value" : "PT120H"
+}
+----
+
+==== InetAddress
+
+[source,json]
+----
+{
+  "@type" : "gx:InetAddress",
+  "@value" : "localhost"
+}
+----
+
+==== Instant
+
+[source,json]
+----
+{
+  "@type" : "gx:Instant",
+  "@value" : "2016-12-14T16:39:19.349Z"
+}
+----
+
+==== LocalDate
+
+[source,json]
+----
+{
+  "@type" : "gx:LocalDate",
+  "@value" : "2016-01-01"
+}
+----
+
+==== LocalDateTime
+
+[source,json]
+----
+{
+  "@type" : "gx:LocalDateTime",
+  "@value" : "2016-01-01T12:30"
+}
+----
+
+==== LocalTime
+
+[source,json]
+----
+{
+  "@type" : "gx:LocalTime",
+  "@value" : "12:30:45"
+}
+----
+
+==== MonthDay
+
+[source,json]
+----
+{
+  "@type" : "gx:MonthDay",
+  "@value" : "--01-01"
+}
+----
+
+==== OffsetDateTime
+
+[source,json]
+----
+{
+  "@type" : "gx:OffsetDateTime",
+  "@value" : "2007-12-03T10:15:30+01:00"
+}
+----
+
+==== OffsetTime
+
+[source,json]
+----
+{
+  "@type" : "gx:OffsetTime",
+  "@value" : "10:15:30+01:00"
+}
+----
+
+==== Period
+
+The following example is a `Period` of one year, six months and fifteen days.
+
+[source,json]
+----
+{
+  "@type" : "gx:Period",
+  "@value" : "P1Y6M15D"
+}
+----
+
+==== Short
+
+[source,json]
+----
+{
+  "@type" : "gx:Int16",
+  "@value" : 100
+}
+----
+
+==== Year
+
+The following example is of the `Year` "2016".
+
+[source,json]
+----
+{
+  "@type" : "gx:Year",
+  "@value" : "2016"
+}
+----
+
+==== YearMonth
+
+The following example is a `YearMonth` of "June 2016"
+
+[source,json]
+----
+{
+  "@type" : "gx:YearMonth",
+  "@value" : "2016-06"
+}
+----
+
+==== ZonedDateTime
+
+[source,json]
+----
+{
+  "@type" : "gx:ZonedDateTime",
+  "@value" : "2016-12-23T12:12:24.000000036+02:00[GMT+02:00]"
+}
+----
+
+==== ZoneOffset
+
+The following example is a `ZoneOffset` of three hours, six minutes, and nine seconds.
+
+[source,json]
+----
+{
+  "@type" : "gx:ZoneOffset",
+  "@value" : "+03:06:09"
+}
+----
+
+[[graphson-3d0]]
+== Version 3.0
+
+Version 3.0 of GraphSON was first introduced on TinkerPop 3.3.0 and is the default format when not specified as of this
+version. It is quite similar to GraphSON 2.0 and in most cases will appear compatible to the eye, however there are
+some critical differences:
+
+* GraphSON 3.0 does not have an option to be typeless. Types are always embedded.
+* GraphSON 2.0 relied on JSON data types for collections like `Map` and `List`. In GraphSON 3.0, there is explicit
+typed support for `Map`, `List` and `Set` as Gremlin relies on those types in quite specific ways that are not
+directly compatible with the JSON definitions of those collections. In the case of `List` and `Set`, it was important
+to distinguish between the two and for `Map` it was necessary to have the ability to return `Map` instances that did
+not have `String` keys (e.g. `g.V().out().groupCount()`).
+
+=== Core
+
+==== Class
+
+[source,json]
+----
+{
+  "@type" : "g:Class",
+  "@value" : "java.io.File"
+}
+----
+
+==== Date
+
+[source,json]
+----
+{
+  "@type" : "g:Date",
+  "@value" : 1481750076295
+}
+----
+
+==== Double
+
+[source,json]
+----
+{
+  "@type" : "g:Double",
+  "@value" : 100.0
+}
+----
+
+==== Float
+
+[source,json]
+----
+{
+  "@type" : "g:Float",
+  "@value" : 100.0
+}
+----
+
+==== Integer
+
+[source,json]
+----
+{
+  "@type" : "g:Int32",
+  "@value" : 100
+}
+----
+
+==== List
+
+List is used to distinguish between different collection types as JSON is not explicit enough for all of Gremlin's requirements.
+
+[source,json]
+----
+{
+  "@type" : "g:List",
+  "@value" : [ {
+    "@type" : "g:Int32",
+    "@value" : 1
+  }, "person", true ]
+}
+----
+
+==== Long
+
+[source,json]
+----
+{
+  "@type" : "g:Int64",
+  "@value" : 100
+}
+----
+
+==== Map
+
+Map is redefined so that to provide the ability to allow for non-String keys, which is not possible in JSON.
+
+[source,json]
+----
+{
+  "@type" : "g:Map",
+  "@value" : [ {
+    "@type" : "g:Date",
+    "@value" : 1481750076295
+  }, "red", {
+    "@type" : "g:List",
+    "@value" : [ {
+      "@type" : "g:Int32",
+      "@value" : 1
+    }, {
+      "@type" : "g:Int32",
+      "@value" : 2
+    }, {
+      "@type" : "g:Int32",
+      "@value" : 3
+    } ]
+  }, {
+    "@type" : "g:Date",
+    "@value" : 1481750076295
+  }, "test", {
+    "@type" : "g:Int32",
+    "@value" : 123
+  } ]
+}
+----
+
+==== Set
+
+Allows a JSON collection to behave as a Set.
+
+[source,json]
+----
+{
+  "@type" : "g:Set",
+  "@value" : [ {
+    "@type" : "g:Int32",
+    "@value" : 1
+  }, "person", true ]
+}
+----
+
+==== Timestamp
+
+[source,json]
+----
+{
+  "@type" : "g:Timestamp",
+  "@value" : 1481750076295
 }
 ----
 
@@ -1599,35 +4025,50 @@ While the `@value` is expected to be a JSON number, it might also be a `String` 
 {
   "@type" : "g:Path",
   "@value" : {
-    "labels" : [ [ ], [ ], [ ] ],
-    "objects" : [ {
-      "@type" : "g:Vertex",
-      "@value" : {
-        "id" : {
-          "@type" : "g:Int32",
-          "@value" : 1
-        },
-        "label" : "person"
-      }
-    }, {
-      "@type" : "g:Vertex",
-      "@value" : {
-        "id" : {
-          "@type" : "g:Int32",
-          "@value" : 10
-        },
-        "label" : "software"
-      }
-    }, {
-      "@type" : "g:Vertex",
-      "@value" : {
-        "id" : {
-          "@type" : "g:Int32",
-          "@value" : 11
-        },
-        "label" : "software"
-      }
-    } ]
+    "labels" : {
+      "@type" : "g:List",
+      "@value" : [ {
+        "@type" : "g:Set",
+        "@value" : [ ]
+      }, {
+        "@type" : "g:Set",
+        "@value" : [ ]
+      }, {
+        "@type" : "g:Set",
+        "@value" : [ ]
+      } ]
+    },
+    "objects" : {
+      "@type" : "g:List",
+      "@value" : [ {
+        "@type" : "g:Vertex",
+        "@value" : {
+          "id" : {
+            "@type" : "g:Int32",
+            "@value" : 1
+          },
+          "label" : "person"
+        }
+      }, {
+        "@type" : "g:Vertex",
+        "@value" : {
+          "id" : {
+            "@type" : "g:Int32",
+            "@value" : 10
+          },
+          "label" : "software"
+        }
+      }, {
+        "@type" : "g:Vertex",
+        "@value" : {
+          "id" : {
+            "@type" : "g:Int32",
+            "@value" : 11
+          },
+          "label" : "software"
+        }
+      } ]
+    }
   }
 }
 ----
@@ -1644,153 +4085,6 @@ While the `@value` is expected to be a JSON number, it might also be a `String` 
       "@type" : "g:Int32",
       "@value" : 2009
     }
-  }
-}
-----
-
-==== StarGraph
-
-[source,json]
-----
-{
-  "id" : {
-    "@type" : "g:Int32",
-    "@value" : 1
-  },
-  "label" : "person",
-  "outE" : {
-    "uses" : [ {
-      "id" : {
-        "@type" : "g:Int32",
-        "@value" : 16
-      },
-      "inV" : {
-        "@type" : "g:Int32",
-        "@value" : 11
-      },
-      "properties" : {
-        "skill" : {
-          "@type" : "g:Int32",
-          "@value" : 5
-        }
-      }
-    }, {
-      "id" : {
-        "@type" : "g:Int32",
-        "@value" : 15
-      },
-      "inV" : {
-        "@type" : "g:Int32",
-        "@value" : 10
-      },
-      "properties" : {
-        "skill" : {
-          "@type" : "g:Int32",
-          "@value" : 4
-        }
-      }
-    } ],
-    "develops" : [ {
-      "id" : {
-        "@type" : "g:Int32",
-        "@value" : 13
-      },
-      "inV" : {
-        "@type" : "g:Int32",
-        "@value" : 10
-      },
-      "properties" : {
-        "since" : {
-          "@type" : "g:Int32",
-          "@value" : 2009
-        }
-      }
-    }, {
-      "id" : {
-        "@type" : "g:Int32",
-        "@value" : 14
-      },
-      "inV" : {
-        "@type" : "g:Int32",
-        "@value" : 11
-      },
-      "properties" : {
-        "since" : {
-          "@type" : "g:Int32",
-          "@value" : 2010
-        }
-      }
-    } ]
-  },
-  "properties" : {
-    "name" : [ {
-      "id" : {
-        "@type" : "g:Int64",
-        "@value" : 0
-      },
-      "value" : "marko"
-    } ],
-    "location" : [ {
-      "id" : {
-        "@type" : "g:Int64",
-        "@value" : 6
-      },
-      "value" : "san diego",
-      "properties" : {
-        "startTime" : {
-          "@type" : "g:Int32",
-          "@value" : 1997
-        },
-        "endTime" : {
-          "@type" : "g:Int32",
-          "@value" : 2001
-        }
-      }
-    }, {
-      "id" : {
-        "@type" : "g:Int64",
-        "@value" : 7
-      },
-      "value" : "santa cruz",
-      "properties" : {
-        "startTime" : {
-          "@type" : "g:Int32",
-          "@value" : 2001
-        },
-        "endTime" : {
-          "@type" : "g:Int32",
-          "@value" : 2004
-        }
-      }
-    }, {
-      "id" : {
-        "@type" : "g:Int64",
-        "@value" : 8
-      },
-      "value" : "brussels",
-      "properties" : {
-        "startTime" : {
-          "@type" : "g:Int32",
-          "@value" : 2004
-        },
-        "endTime" : {
-          "@type" : "g:Int32",
-          "@value" : 2005
-        }
-      }
-    }, {
-      "id" : {
-        "@type" : "g:Int64",
-        "@value" : 9
-      },
-      "value" : "santa fe",
-      "properties" : {
-        "startTime" : {
-          "@type" : "g:Int32",
-          "@value" : 2005
-        }
-      }
-    } ]
   }
 }
 ----
@@ -2632,620 +4926,6 @@ While the `@value` is expected to be a JSON number, it might also be a `String` 
 }
 ----
 
-==== Tree
-
-[source,json]
-----
-{
-  "@type" : "g:Tree",
-  "@value" : [ {
-    "key" : {
-      "@type" : "g:Vertex",
-      "@value" : {
-        "id" : {
-          "@type" : "g:Int32",
-          "@value" : 1
-        },
-        "label" : "person",
-        "properties" : {
-          "name" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 0
-              },
-              "value" : "marko",
-              "label" : "name"
-            }
-          } ],
-          "location" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 6
-              },
-              "value" : "san diego",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 1997
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2001
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 7
-              },
-              "value" : "santa cruz",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2001
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2004
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 8
-              },
-              "value" : "brussels",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2004
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2005
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 9
-              },
-              "value" : "santa fe",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2005
-                }
-              }
-            }
-          } ]
-        }
-      }
-    },
-    "value" : {
-      "@type" : "g:Tree",
-      "@value" : [ {
-        "key" : {
-          "@type" : "g:Vertex",
-          "@value" : {
-            "id" : {
-              "@type" : "g:Int32",
-              "@value" : 10
-            },
-            "label" : "software",
-            "properties" : {
-              "name" : [ {
-                "@type" : "g:VertexProperty",
-                "@value" : {
-                  "id" : {
-                    "@type" : "g:Int64",
-                    "@value" : 4
-                  },
-                  "value" : "gremlin",
-                  "label" : "name"
-                }
-              } ]
-            }
-          }
-        },
-        "value" : {
-          "@type" : "g:Tree",
-          "@value" : [ {
-            "key" : {
-              "@type" : "g:Vertex",
-              "@value" : {
-                "id" : {
-                  "@type" : "g:Int32",
-                  "@value" : 11
-                },
-                "label" : "software",
-                "properties" : {
-                  "name" : [ {
-                    "@type" : "g:VertexProperty",
-                    "@value" : {
-                      "id" : {
-                        "@type" : "g:Int64",
-                        "@value" : 5
-                      },
-                      "value" : "tinkergraph",
-                      "label" : "name"
-                    }
-                  } ]
-                }
-              }
-            },
-            "value" : {
-              "@type" : "g:Tree",
-              "@value" : [ ]
-            }
-          } ]
-        }
-      } ]
-    }
-  }, {
-    "key" : {
-      "@type" : "g:Vertex",
-      "@value" : {
-        "id" : {
-          "@type" : "g:Int32",
-          "@value" : 7
-        },
-        "label" : "person",
-        "properties" : {
-          "name" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 1
-              },
-              "value" : "stephen",
-              "label" : "name"
-            }
-          } ],
-          "location" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 10
-              },
-              "value" : "centreville",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 1990
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2000
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 11
-              },
-              "value" : "dulles",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2000
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2006
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 12
-              },
-              "value" : "purcellville",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2006
-                }
-              }
-            }
-          } ]
-        }
-      }
-    },
-    "value" : {
-      "@type" : "g:Tree",
-      "@value" : [ {
-        "key" : {
-          "@type" : "g:Vertex",
-          "@value" : {
-            "id" : {
-              "@type" : "g:Int32",
-              "@value" : 10
-            },
-            "label" : "software",
-            "properties" : {
-              "name" : [ {
-                "@type" : "g:VertexProperty",
-                "@value" : {
-                  "id" : {
-                    "@type" : "g:Int64",
-                    "@value" : 4
-                  },
-                  "value" : "gremlin",
-                  "label" : "name"
-                }
-              } ]
-            }
-          }
-        },
-        "value" : {
-          "@type" : "g:Tree",
-          "@value" : [ {
-            "key" : {
-              "@type" : "g:Vertex",
-              "@value" : {
-                "id" : {
-                  "@type" : "g:Int32",
-                  "@value" : 11
-                },
-                "label" : "software",
-                "properties" : {
-                  "name" : [ {
-                    "@type" : "g:VertexProperty",
-                    "@value" : {
-                      "id" : {
-                        "@type" : "g:Int64",
-                        "@value" : 5
-                      },
-                      "value" : "tinkergraph",
-                      "label" : "name"
-                    }
-                  } ]
-                }
-              }
-            },
-            "value" : {
-              "@type" : "g:Tree",
-              "@value" : [ ]
-            }
-          } ]
-        }
-      } ]
-    }
-  }, {
-    "key" : {
-      "@type" : "g:Vertex",
-      "@value" : {
-        "id" : {
-          "@type" : "g:Int32",
-          "@value" : 8
-        },
-        "label" : "person",
-        "properties" : {
-          "name" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 2
-              },
-              "value" : "matthias",
-              "label" : "name"
-            }
-          } ],
-          "location" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 13
-              },
-              "value" : "bremen",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2004
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2007
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 14
-              },
-              "value" : "baltimore",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2007
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2011
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 15
-              },
-              "value" : "oakland",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2011
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2014
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 16
-              },
-              "value" : "seattle",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2014
-                }
-              }
-            }
-          } ]
-        }
-      }
-    },
-    "value" : {
-      "@type" : "g:Tree",
-      "@value" : [ {
-        "key" : {
-          "@type" : "g:Vertex",
-          "@value" : {
-            "id" : {
-              "@type" : "g:Int32",
-              "@value" : 10
-            },
-            "label" : "software",
-            "properties" : {
-              "name" : [ {
-                "@type" : "g:VertexProperty",
-                "@value" : {
-                  "id" : {
-                    "@type" : "g:Int64",
-                    "@value" : 4
-                  },
-                  "value" : "gremlin",
-                  "label" : "name"
-                }
-              } ]
-            }
-          }
-        },
-        "value" : {
-          "@type" : "g:Tree",
-          "@value" : [ {
-            "key" : {
-              "@type" : "g:Vertex",
-              "@value" : {
-                "id" : {
-                  "@type" : "g:Int32",
-                  "@value" : 11
-                },
-                "label" : "software",
-                "properties" : {
-                  "name" : [ {
-                    "@type" : "g:VertexProperty",
-                    "@value" : {
-                      "id" : {
-                        "@type" : "g:Int64",
-                        "@value" : 5
-                      },
-                      "value" : "tinkergraph",
-                      "label" : "name"
-                    }
-                  } ]
-                }
-              }
-            },
-            "value" : {
-              "@type" : "g:Tree",
-              "@value" : [ ]
-            }
-          } ]
-        }
-      } ]
-    }
-  }, {
-    "key" : {
-      "@type" : "g:Vertex",
-      "@value" : {
-        "id" : {
-          "@type" : "g:Int32",
-          "@value" : 9
-        },
-        "label" : "person",
-        "properties" : {
-          "name" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 3
-              },
-              "value" : "daniel",
-              "label" : "name"
-            }
-          } ],
-          "location" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 17
-              },
-              "value" : "spremberg",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 1982
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2005
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 18
-              },
-              "value" : "kaiserslautern",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2005
-                },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2009
-                }
-              }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 19
-              },
-              "value" : "aachen",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2009
-                }
-              }
-            }
-          } ]
-        }
-      }
-    },
-    "value" : {
-      "@type" : "g:Tree",
-      "@value" : [ {
-        "key" : {
-          "@type" : "g:Vertex",
-          "@value" : {
-            "id" : {
-              "@type" : "g:Int32",
-              "@value" : 10
-            },
-            "label" : "software",
-            "properties" : {
-              "name" : [ {
-                "@type" : "g:VertexProperty",
-                "@value" : {
-                  "id" : {
-                    "@type" : "g:Int64",
-                    "@value" : 4
-                  },
-                  "value" : "gremlin",
-                  "label" : "name"
-                }
-              } ]
-            }
-          }
-        },
-        "value" : {
-          "@type" : "g:Tree",
-          "@value" : [ {
-            "key" : {
-              "@type" : "g:Vertex",
-              "@value" : {
-                "id" : {
-                  "@type" : "g:Int32",
-                  "@value" : 11
-                },
-                "label" : "software",
-                "properties" : {
-                  "name" : [ {
-                    "@type" : "g:VertexProperty",
-                    "@value" : {
-                      "id" : {
-                        "@type" : "g:Int64",
-                        "@value" : 5
-                      },
-                      "value" : "tinkergraph",
-                      "label" : "name"
-                    }
-                  } ]
-                }
-              }
-            },
-            "value" : {
-              "@type" : "g:Tree",
-              "@value" : [ ]
-            }
-          } ]
-        }
-      } ]
-    }
-  } ]
-}
-----
-
 ==== Vertex
 
 [source,json]
@@ -3460,7 +5140,17 @@ The following `Bytecode` example represents the traversal of `g.V().hasLabel('pe
 ----
 {
   "@type" : "g:Order",
-  "@value" : "incr"
+  "@value" : "shuffle"
+}
+----
+
+==== Pick
+
+[source,json]
+----
+{
+  "@type" : "g:Pick",
+  "@value" : "any"
 }
 ----
 
@@ -3505,54 +5195,52 @@ The following `Bytecode` example represents the traversal of `g.V().hasLabel('pe
 {
   "@type" : "g:Metrics",
   "@value" : {
-    "dur" : {
+    "@type" : "g:Map",
+    "@value" : [ "dur", {
       "@type" : "g:Double",
-      "@value" : 0.138285
-    },
-    "counts" : {
-      "traverserCount" : {
+      "@value" : 100.0
+    }, "counts", {
+      "@type" : "g:Map",
+      "@value" : [ "traverserCount", {
         "@type" : "g:Int64",
         "@value" : 4
-      },
-      "elementCount" : {
+      }, "elementCount", {
         "@type" : "g:Int64",
         "@value" : 4
-      }
-    },
-    "name" : "TinkerGraphStep(vertex,[~label.eq(person)])",
-    "annotations" : {
-      "percentDur" : {
+      } ]
+    }, "name", "TinkerGraphStep(vertex,[~label.eq(person)])", "annotations", {
+      "@type" : "g:Map",
+      "@value" : [ "percentDur", {
         "@type" : "g:Double",
-        "@value" : 20.492768957867455
-      }
-    },
-    "id" : "7.0.0()",
-    "metrics" : [ {
-      "@type" : "g:Metrics",
-      "@value" : {
-        "dur" : {
-          "@type" : "g:Double",
-          "@value" : 0.172605
-        },
-        "counts" : {
-          "traverserCount" : {
-            "@type" : "g:Int64",
-            "@value" : 13
-          },
-          "elementCount" : {
-            "@type" : "g:Int64",
-            "@value" : 13
-          }
-        },
-        "name" : "VertexStep(OUT,vertex)",
-        "annotations" : {
-          "percentDur" : {
+        "@value" : 25.0
+      } ]
+    }, "id", "7.0.0()", "metrics", {
+      "@type" : "g:List",
+      "@value" : [ {
+        "@type" : "g:Metrics",
+        "@value" : {
+          "@type" : "g:Map",
+          "@value" : [ "dur", {
             "@type" : "g:Double",
-            "@value" : 25.57872788785994
-          }
-        },
-        "id" : "2.0.0()"
-      }
+            "@value" : 100.0
+          }, "counts", {
+            "@type" : "g:Map",
+            "@value" : [ "traverserCount", {
+              "@type" : "g:Int64",
+              "@value" : 7
+            }, "elementCount", {
+              "@type" : "g:Int64",
+              "@value" : 7
+            } ]
+          }, "name", "VertexStep(OUT,vertex)", "annotations", {
+            "@type" : "g:Map",
+            "@value" : [ "percentDur", {
+              "@type" : "g:Double",
+              "@value" : 25.0
+            } ]
+          }, "id", "3.0.0()" ]
+        }
+      } ]
     } ]
   }
 }
@@ -3667,16 +5355,19 @@ Please see <<_p,P>> for additional information on `within`.
       "@type" : "g:P",
       "@value" : {
         "predicate" : "within",
-        "value" : [ {
-          "@type" : "g:Int32",
-          "@value" : -1
-        }, {
-          "@type" : "g:Int32",
-          "@value" : -10
-        }, {
-          "@type" : "g:Int32",
-          "@value" : -100
-        } ]
+        "value" : {
+          "@type" : "g:List",
+          "@value" : [ {
+            "@type" : "g:Int32",
+            "@value" : -1
+          }, {
+            "@type" : "g:Int32",
+            "@value" : -10
+          }, {
+            "@type" : "g:Int32",
+            "@value" : -100
+          } ]
+        }
       }
     } ]
   }
@@ -3710,114 +5401,109 @@ Please see <<_p,P>> for additional information on `within`.
 {
   "@type" : "g:TraversalMetrics",
   "@value" : {
-    "dur" : {
+    "@type" : "g:Map",
+    "@value" : [ "dur", {
       "@type" : "g:Double",
-      "@value" : 0.575429
-    },
-    "metrics" : [ {
-      "@type" : "g:Metrics",
-      "@value" : {
-        "dur" : {
-          "@type" : "g:Double",
-          "@value" : 0.087601
-        },
-        "counts" : {
-          "traverserCount" : {
-            "@type" : "g:Int64",
-            "@value" : 4
-          },
-          "elementCount" : {
-            "@type" : "g:Int64",
-            "@value" : 4
-          }
-        },
-        "name" : "TinkerGraphStep(vertex,[~label.eq(person)])",
-        "annotations" : {
-          "percentDur" : {
+      "@value" : 0.004
+    }, "metrics", {
+      "@type" : "g:List",
+      "@value" : [ {
+        "@type" : "g:Metrics",
+        "@value" : {
+          "@type" : "g:Map",
+          "@value" : [ "dur", {
             "@type" : "g:Double",
-            "@value" : 15.22359839354638
-          }
-        },
-        "id" : "7.0.0()"
-      }
-    }, {
-      "@type" : "g:Metrics",
-      "@value" : {
-        "dur" : {
-          "@type" : "g:Double",
-          "@value" : 0.154435
-        },
-        "counts" : {
-          "traverserCount" : {
-            "@type" : "g:Int64",
-            "@value" : 13
-          },
-          "elementCount" : {
-            "@type" : "g:Int64",
-            "@value" : 13
-          }
-        },
-        "name" : "VertexStep(OUT,vertex)",
-        "annotations" : {
-          "percentDur" : {
+            "@value" : 100.0
+          }, "counts", {
+            "@type" : "g:Map",
+            "@value" : [ "traverserCount", {
+              "@type" : "g:Int64",
+              "@value" : 4
+            }, "elementCount", {
+              "@type" : "g:Int64",
+              "@value" : 4
+            } ]
+          }, "name", "TinkerGraphStep(vertex,[~label.eq(person)])", "annotations", {
+            "@type" : "g:Map",
+            "@value" : [ "percentDur", {
+              "@type" : "g:Double",
+              "@value" : 25.0
+            } ]
+          }, "id", "7.0.0()" ]
+        }
+      }, {
+        "@type" : "g:Metrics",
+        "@value" : {
+          "@type" : "g:Map",
+          "@value" : [ "dur", {
             "@type" : "g:Double",
-            "@value" : 26.83823721084617
-          }
-        },
-        "id" : "2.0.0()"
-      }
-    }, {
-      "@type" : "g:Metrics",
-      "@value" : {
-        "dur" : {
-          "@type" : "g:Double",
-          "@value" : 0.18682
-        },
-        "counts" : {
-          "traverserCount" : {
-            "@type" : "g:Int64",
-            "@value" : 7
-          },
-          "elementCount" : {
-            "@type" : "g:Int64",
-            "@value" : 7
-          }
-        },
-        "name" : "VertexStep(OUT,vertex)",
-        "annotations" : {
-          "percentDur" : {
+            "@value" : 100.0
+          }, "counts", {
+            "@type" : "g:Map",
+            "@value" : [ "traverserCount", {
+              "@type" : "g:Int64",
+              "@value" : 13
+            }, "elementCount", {
+              "@type" : "g:Int64",
+              "@value" : 13
+            } ]
+          }, "name", "VertexStep(OUT,vertex)", "annotations", {
+            "@type" : "g:Map",
+            "@value" : [ "percentDur", {
+              "@type" : "g:Double",
+              "@value" : 25.0
+            } ]
+          }, "id", "2.0.0()" ]
+        }
+      }, {
+        "@type" : "g:Metrics",
+        "@value" : {
+          "@type" : "g:Map",
+          "@value" : [ "dur", {
             "@type" : "g:Double",
-            "@value" : 32.46621216518459
-          }
-        },
-        "id" : "3.0.0()"
-      }
-    }, {
-      "@type" : "g:Metrics",
-      "@value" : {
-        "dur" : {
-          "@type" : "g:Double",
-          "@value" : 0.146573
-        },
-        "counts" : {
-          "traverserCount" : {
-            "@type" : "g:Int64",
-            "@value" : 1
-          },
-          "elementCount" : {
-            "@type" : "g:Int64",
-            "@value" : 1
-          }
-        },
-        "name" : "TreeStep",
-        "annotations" : {
-          "percentDur" : {
+            "@value" : 100.0
+          }, "counts", {
+            "@type" : "g:Map",
+            "@value" : [ "traverserCount", {
+              "@type" : "g:Int64",
+              "@value" : 7
+            }, "elementCount", {
+              "@type" : "g:Int64",
+              "@value" : 7
+            } ]
+          }, "name", "VertexStep(OUT,vertex)", "annotations", {
+            "@type" : "g:Map",
+            "@value" : [ "percentDur", {
+              "@type" : "g:Double",
+              "@value" : 25.0
+            } ]
+          }, "id", "3.0.0()" ]
+        }
+      }, {
+        "@type" : "g:Metrics",
+        "@value" : {
+          "@type" : "g:Map",
+          "@value" : [ "dur", {
             "@type" : "g:Double",
-            "@value" : 25.47195223042287
-          }
-        },
-        "id" : "4.0.0()"
-      }
+            "@value" : 100.0
+          }, "counts", {
+            "@type" : "g:Map",
+            "@value" : [ "traverserCount", {
+              "@type" : "g:Int64",
+              "@value" : 1
+            }, "elementCount", {
+              "@type" : "g:Int64",
+              "@value" : 1
+            } ]
+          }, "name", "TreeStep", "annotations", {
+            "@type" : "g:Map",
+            "@value" : [ "percentDur", {
+              "@type" : "g:Double",
+              "@value" : 25.0
+            } ]
+          }, "id", "4.0.0()" ]
+        }
+      } ]
     } ]
   }
 }
@@ -3948,12 +5634,12 @@ The following `RequestMessage` is an example of the response that should be made
 [source,json]
 ----
 {
-  "requestId" : "494a84a2-4829-4c37-8977-cff830f8cfb6",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "authentication",
   "processor" : "",
   "args" : {
-    "saslMechanism" : "PLAIN",
-    "sasl" : "AHN0ZXBocGhlbgBwYXNzd29yZA=="
+    "@type" : "g:Map",
+    "@value" : [ "saslMechanism", "PLAIN", "sasl", "AHN0ZXBocGhlbgBwYXNzd29yZA==" ]
   }
 }
 ----
@@ -3965,52 +5651,50 @@ The following `RequestMessage` is an example of a simple session request for a s
 [source,json]
 ----
 {
-  "requestId" : "ec474f7f-1ff5-404c-a9c8-3dbffa977eac",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "eval",
   "processor" : "session",
   "args" : {
-    "gremlin" : "g.V(x)",
-    "language" : "gremlin-groovy",
-    "session" : {
+    "@type" : "g:Map",
+    "@value" : [ "gremlin", "g.V(x)", "language", "gremlin-groovy", "session", {
       "@type" : "g:UUID",
       "@value" : "41d2e28a-20a4-4ab0-b379-d810dede3786"
-    },
-    "bindings" : {
-      "x" : {
+    }, "bindings", {
+      "@type" : "g:Map",
+      "@value" : [ "x", {
         "@type" : "g:Int32",
         "@value" : 1
-      }
-    }
+      } ]
+    } ]
   }
 }
 ----
 
-==== Session Eval
+==== Session Eval Aliased
 
 The following `RequestMessage` is an example of a session request for a script evaluation with an alias that binds the `TraversalSource` of "g" to "social".
 
 [source,json]
 ----
 {
-  "requestId" : "5f427442-3d46-4254-97c9-90ed7b631a9c",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "eval",
   "processor" : "session",
   "args" : {
-    "gremlin" : "social.V(x)",
-    "language" : "gremlin-groovy",
-    "aliases" : {
-      "g" : "social"
-    },
-    "session" : {
+    "@type" : "g:Map",
+    "@value" : [ "gremlin", "social.V(x)", "language", "gremlin-groovy", "aliases", {
+      "@type" : "g:Map",
+      "@value" : [ "g", "social" ]
+    }, "session", {
       "@type" : "g:UUID",
       "@value" : "41d2e28a-20a4-4ab0-b379-d810dede3786"
-    },
-    "bindings" : {
-      "x" : {
+    }, "bindings", {
+      "@type" : "g:Map",
+      "@value" : [ "x", {
         "@type" : "g:Int32",
         "@value" : 1
-      }
-    }
+      } ]
+    } ]
   }
 }
 ----
@@ -4022,14 +5706,15 @@ The following `RequestMessage` is an example of a request to close a session.
 [source,json]
 ----
 {
-  "requestId" : "a648cf9d-6ddd-4c0e-9606-a7f3bfaf5171",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "close",
   "processor" : "session",
   "args" : {
-    "session" : {
+    "@type" : "g:Map",
+    "@value" : [ "session", {
       "@type" : "g:UUID",
       "@value" : "41d2e28a-20a4-4ab0-b379-d810dede3786"
-    }
+    } ]
   }
 }
 ----
@@ -4041,44 +5726,44 @@ The following `RequestMessage` is an example of a simple sessionless request for
 [source,json]
 ----
 {
-  "requestId" : "b774546a-f26e-4613-b935-a7fea1047f4f",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "eval",
   "processor" : "",
   "args" : {
-    "gremlin" : "g.V(x)",
-    "language" : "gremlin-groovy",
-    "bindings" : {
-      "x" : {
+    "@type" : "g:Map",
+    "@value" : [ "gremlin", "g.V(x)", "language", "gremlin-groovy", "bindings", {
+      "@type" : "g:Map",
+      "@value" : [ "x", {
         "@type" : "g:Int32",
         "@value" : 1
-      }
-    }
+      } ]
+    } ]
   }
 }
 ----
 
-==== Sessionless Eval
+==== Sessionless Eval Aliased
 
 The following `RequestMessage` is an example of a sessionless request for a script evaluation with an alias that binds the `TraversalSource` of "g" to "social".
 
 [source,json]
 ----
 {
-  "requestId" : "19ab1ce9-cf43-4e7e-80d2-94a0102e02b8",
+  "requestId" : "cb682578-9d92-4499-9ebc-5c6aa73c5397",
   "op" : "eval",
   "processor" : "",
   "args" : {
-    "gremlin" : "social.V(x)",
-    "language" : "gremlin-groovy",
-    "aliases" : {
-      "g" : "social"
-    },
-    "bindings" : {
-      "x" : {
+    "@type" : "g:Map",
+    "@value" : [ "gremlin", "social.V(x)", "language", "gremlin-groovy", "aliases", {
+      "@type" : "g:Map",
+      "@value" : [ "g", "social" ]
+    }, "bindings", {
+      "@type" : "g:Map",
+      "@value" : [ "x", {
         "@type" : "g:Int32",
         "@value" : 1
-      }
-    }
+      } ]
+    } ]
   }
 }
 ----
@@ -4088,7 +5773,7 @@ The following `RequestMessage` is an example of a sessionless request for a scri
 
 ==== Authentication Challenge
 
-When authentication is enabled, an initial request to the server will result in an authentication challenge. The typical response message will appear as follows, but handling it could be different dependending on the SASL implementation (e.g. multiple challenges may be requested in some cases, but not in the default provided by Gremlin Server).
+When authentication is enabled, an initial request to the server will result in an authentication challenge. The typical response message will appear as follows, but handling it could be different depending on the SASL implementation (e.g. multiple challenges may be requested in some cases, but not in the default provided by Gremlin Server).
 
 [source,json]
 ----
@@ -4097,11 +5782,17 @@ When authentication is enabled, an initial request to the server will result in 
   "status" : {
     "message" : "",
     "code" : 407,
-    "attributes" : { }
+    "attributes" : {
+      "@type" : "g:Map",
+      "@value" : [ ]
+    }
   },
   "result" : {
     "data" : null,
-    "meta" : { }
+    "meta" : {
+      "@type" : "g:Map",
+      "@value" : [ ]
+    }
   }
 }
 ----
@@ -4117,110 +5808,119 @@ The following `ResponseMessage` is a typical example of the typical successful r
   "status" : {
     "message" : "",
     "code" : 200,
-    "attributes" : { }
+    "attributes" : {
+      "@type" : "g:Map",
+      "@value" : [ ]
+    }
   },
   "result" : {
-    "data" : [ {
-      "@type" : "g:Vertex",
-      "@value" : {
-        "id" : {
-          "@type" : "g:Int32",
-          "@value" : 1
-        },
-        "label" : "person",
-        "properties" : {
-          "name" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 0
-              },
-              "value" : "marko",
-              "label" : "name"
-            }
-          } ],
-          "location" : [ {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 6
-              },
-              "value" : "san diego",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 1997
+    "data" : {
+      "@type" : "g:List",
+      "@value" : [ {
+        "@type" : "g:Vertex",
+        "@value" : {
+          "id" : {
+            "@type" : "g:Int32",
+            "@value" : 1
+          },
+          "label" : "person",
+          "properties" : {
+            "name" : [ {
+              "@type" : "g:VertexProperty",
+              "@value" : {
+                "id" : {
+                  "@type" : "g:Int64",
+                  "@value" : 0
                 },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2001
-                }
+                "value" : "marko",
+                "label" : "name"
               }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 7
-              },
-              "value" : "santa cruz",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2001
+            } ],
+            "location" : [ {
+              "@type" : "g:VertexProperty",
+              "@value" : {
+                "id" : {
+                  "@type" : "g:Int64",
+                  "@value" : 6
                 },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2004
+                "value" : "san diego",
+                "label" : "location",
+                "properties" : {
+                  "startTime" : {
+                    "@type" : "g:Int32",
+                    "@value" : 1997
+                  },
+                  "endTime" : {
+                    "@type" : "g:Int32",
+                    "@value" : 2001
+                  }
                 }
               }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 8
-              },
-              "value" : "brussels",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2004
+            }, {
+              "@type" : "g:VertexProperty",
+              "@value" : {
+                "id" : {
+                  "@type" : "g:Int64",
+                  "@value" : 7
                 },
-                "endTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2005
+                "value" : "santa cruz",
+                "label" : "location",
+                "properties" : {
+                  "startTime" : {
+                    "@type" : "g:Int32",
+                    "@value" : 2001
+                  },
+                  "endTime" : {
+                    "@type" : "g:Int32",
+                    "@value" : 2004
+                  }
                 }
               }
-            }
-          }, {
-            "@type" : "g:VertexProperty",
-            "@value" : {
-              "id" : {
-                "@type" : "g:Int64",
-                "@value" : 9
-              },
-              "value" : "santa fe",
-              "label" : "location",
-              "properties" : {
-                "startTime" : {
-                  "@type" : "g:Int32",
-                  "@value" : 2005
+            }, {
+              "@type" : "g:VertexProperty",
+              "@value" : {
+                "id" : {
+                  "@type" : "g:Int64",
+                  "@value" : 8
+                },
+                "value" : "brussels",
+                "label" : "location",
+                "properties" : {
+                  "startTime" : {
+                    "@type" : "g:Int32",
+                    "@value" : 2004
+                  },
+                  "endTime" : {
+                    "@type" : "g:Int32",
+                    "@value" : 2005
+                  }
                 }
               }
-            }
-          } ]
+            }, {
+              "@type" : "g:VertexProperty",
+              "@value" : {
+                "id" : {
+                  "@type" : "g:Int64",
+                  "@value" : 9
+                },
+                "value" : "santa fe",
+                "label" : "location",
+                "properties" : {
+                  "startTime" : {
+                    "@type" : "g:Int32",
+                    "@value" : 2005
+                  }
+                }
+              }
+            } ]
+          }
         }
-      }
-    } ],
-    "meta" : { }
+      } ]
+    },
+    "meta" : {
+      "@type" : "g:Map",
+      "@value" : [ ]
+    }
   }
 }
 ----
@@ -4228,14 +5928,14 @@ The following `ResponseMessage` is a typical example of the typical successful r
 
 === Extended
 
-Note that the "extended" types require the addition of the separate `GraphSONXModuleV2d0` module as follows:
+Note that the "extended" types require the addition of the separate `GraphSONXModuleV3d0` module as follows:
 
 [source,java]
 ----
 mapper = GraphSONMapper.build().
                         typeInfo(TypeInfo.PARTIAL_TYPES).
-                        addCustomModule(GraphSONXModuleV2d0.build().create(false)).
-                        version(GraphSONVersion.V2_0).create().createMapper()
+                        addCustomModule(GraphSONXModuleV3d0.build().create(false)).
+                        version(GraphSONVersion.V3_0).create().createMapper()
 ----
 
 ==== BigDecimal
@@ -4274,7 +5974,7 @@ mapper = GraphSONMapper.build().
 ----
 {
   "@type" : "gx:ByteBuffer",
-  "@value" : "AQIDBAU="
+  "@value" : "c29tZSBieXRlcyBmb3IgeW91"
 }
 ----
 
@@ -4316,7 +6016,7 @@ The following example is a `Duration` of five days.
 ----
 {
   "@type" : "gx:Instant",
-  "@value" : "2018-01-19T13:30:24.598Z"
+  "@value" : "2016-12-14T16:39:19.349Z"
 }
 ----
 
@@ -4366,7 +6066,7 @@ The following example is a `Duration` of five days.
 ----
 {
   "@type" : "gx:OffsetDateTime",
-  "@value" : "2018-01-19T08:30:24.600-05:00"
+  "@value" : "2007-12-03T10:15:30+01:00"
 }
 ----
 
@@ -4376,7 +6076,7 @@ The following example is a `Duration` of five days.
 ----
 {
   "@type" : "gx:OffsetTime",
-  "@value" : "08:30:24.601-05:00"
+  "@value" : "10:15:30+01:00"
 }
 ----
 
@@ -4432,7 +6132,7 @@ The following example is a `YearMonth` of "June 2016"
 ----
 {
   "@type" : "gx:ZonedDateTime",
-  "@value" : "2018-01-19T08:30:24.603-05:00[America/New_York]"
+  "@value" : "2016-12-23T12:12:24.000000036+02:00[GMT+02:00]"
 }
 ----
 

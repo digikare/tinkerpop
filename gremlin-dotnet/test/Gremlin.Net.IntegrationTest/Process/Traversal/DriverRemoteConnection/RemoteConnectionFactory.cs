@@ -44,8 +44,8 @@ namespace Gremlin.Net.IntegrationTest.Process.Traversal.DriverRemoteConnection
 
         public IRemoteConnection CreateRemoteConnection(string traversalSource)
         {
-            var c = new DriverRemoteConnectionImpl(
-                new GremlinClient(new GremlinServer(TestHost, TestPort)), traversalSource);
+            var c = new DriverRemoteConnectionImpl(new GremlinClient(new GremlinServer(TestHost, TestPort)),
+                traversalSource);
             _connections.Add(c);
             return c;
         }

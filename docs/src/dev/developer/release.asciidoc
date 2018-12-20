@@ -125,6 +125,9 @@ during this period.
 ... All tickets not marked "Fixed", "Done", or "Implemented" for their Resolution should not have a Fix Version
 assigned (use common sense when reviewing these tickets before removing the Fix Version as it is possible the incorrect
 Resolution may have been assigned).
+.. Be sure that `gremlin-io-test` has been updated (from 3.3.0 on - this module was not available prior to the 3.3.x line)
+... This is typically a post-release task, but it's worth checking to be sure in case the step was somehow overlooked.
+... Instructions for updating the module are described in the <<io,IO Documentation and Testing Section>>.
 . When all documentation changes are in place, use `bin/publish-docs.sh` to deploy a final `SNAPSHOT` representation
 of the docs and thus validate that there are no issues with the documentation generation process. Request review
 of the published documentation on the dev mailing list.
@@ -138,7 +141,6 @@ deployment.
 
 . `mvn clean install -DincludeNeo4j`
 .. `mvn verify -DskipIntegrationTests=false -DincludeNeo4j`
-.. `mvn verify -DskipPerformanceTests=false`
 . `bin/publish-docs.sh <username>` - note that under a release candidate the documentation is published as SNAPSHOT
 . `mvn versions:set -DnewVersion=xx.yy.zz -DgenerateBackupPoms=false` to update the project files to reference a non-SNAPSHOT version
 . `pushd gremlin-console/bin; ln -fs ../target/apache-tinkerpop-gremlin-console-xx.yy.zz-standalone/bin/gremlin.sh gremlin.sh; popd`
@@ -175,7 +177,9 @@ validity into question.
 . Update `CHANGELOG.asciidoc`:
 .. Update the release date - the release date is the date of the vote. Double check the header to be sure that it is
 formatted properly - the easiest way to is to view the `CHANGELOG.asciidoc` to be sure that it produces a link in the
-GitHub viewer.
+GitHub viewer. The release date for all versions should be the same as the first release of the set even if the
+release vote does not begin on the same day. In other words if 3.2.x has a vote date of "October, 1 2018" then 3.3.x
+should also have that date even if the vote thread for 3.3.x doesn't start until the day after.
 .. Generate the JIRA release notes report for the current version and append them to the `CHANGELOG.asciidoc`.
 ... Use an "advanced" search to filter out JIRA issues already released on other versions. For example:
 `project = TINKERPOP and status = Closed AND fixVersion = 3.2.0 ORDER BY type, Id ASC`.
@@ -276,8 +280,8 @@ as one individual may simply just handle them all.
 .. `bin/process-docs.sh` and validate the generated `SNAPSHOT` documentation locally and then `bin/publish-docs.sh <username>`
 .. Commit and push the `SNAPSHOT` changes to git
 . Send email to advise that code freeze is lifted.
-. Generate a list of dead branches that will be automatically deleted and post them as a DISCUSS thread for review,
-then once consensus is reached removed those branches.
+. Generate a list of dead branches that will be automatically deleted and post them as a DISCUSS thread for review, then once consensus is reached removed those branches.
+. Set up the IO tests for the current `SNAPSHOT` as discussed in the <<io,IO Documentation and Testing Section>>
 
 == Email Templates
 
@@ -311,10 +315,10 @@ The online docs can be found here:
 	http://tinkerpop.apache.org/javadocs/xx.yy.zz/full/ (full javadoc)
 
 The tag in Apache Git can be found here:
-	https://github.com/apache/tinkerpop/tree/x.y.z
+	https://github.com/apache/tinkerpop/tree/xx.yy.zz
 
 The release notes are available here:
-	https://github.com/apache/tinkerpop/blob/x.y.z/CHANGELOG.asciidoc
+	https://github.com/apache/tinkerpop/blob/xx.yy.zz/CHANGELOG.asciidoc
 
 The [VOTE] will be open for the next 72 hours --- closing <DayOfTheWeek> (<Month> <Day> <Year>) at <Time> <TimeZone>.
 
@@ -396,6 +400,11 @@ https://www.nuget.org/packages/Gremlin.Net/xx.yy.zz
 Javascript artifacts are available in npm:
 
 https://www.npmjs.com/package/gremlin/v/xx.yy.zz
+
+Docker images for Gremlin Console and Gremlin Server can be found on Docker
+Hub:
+
+https://hub.docker.com/u/tinkerpop/
 
 [include the release line logo image]
 ----

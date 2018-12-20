@@ -31,9 +31,12 @@ namespace Gremlin.Net.Structure.IO.GraphSON
     /// <summary>
     ///     Allows to deserialize GraphSON to objects.
     /// </summary>
-    public class GraphSONReader
+    public abstract class GraphSONReader
     {
-        private readonly Dictionary<string, IGraphSONDeserializer> _deserializerByGraphSONType = new Dictionary
+        /// <summary>
+        /// Contains the <see cref="IGraphSONDeserializer" /> instances by their type identifier. 
+        /// </summary>
+        protected readonly Dictionary<string, IGraphSONDeserializer> Deserializers = new Dictionary
             <string, IGraphSONDeserializer>
             {
                 {"g:Traverser", new TraverserReader()},
@@ -49,6 +52,7 @@ namespace Gremlin.Net.Structure.IO.GraphSON
                 {"g:Property", new PropertyDeserializer()},
                 {"g:VertexProperty", new VertexPropertyDeserializer()},
                 {"g:Path", new PathDeserializer()},
+                {"g:T", new TDeserializer()},
 
                 //Extended
                 {"gx:BigDecimal", new DecimalConverter()},
@@ -63,7 +67,7 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         /// <summary>
         ///     Initializes a new instance of the <see cref="GraphSONReader" /> class.
         /// </summary>
-        public GraphSONReader()
+        protected GraphSONReader()
         {
         }
 
@@ -74,10 +78,10 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         ///     <see cref="IGraphSONDeserializer" /> deserializers identified by their
         ///     GraphSON type.
         /// </param>
-        public GraphSONReader(IReadOnlyDictionary<string, IGraphSONDeserializer> deserializerByGraphSONType)
+        protected GraphSONReader(IReadOnlyDictionary<string, IGraphSONDeserializer> deserializerByGraphSONType)
         {
             foreach (var deserializerAndGraphSONType in deserializerByGraphSONType)
-                _deserializerByGraphSONType[deserializerAndGraphSONType.Key] = deserializerAndGraphSONType.Value;
+                Deserializers[deserializerAndGraphSONType.Key] = deserializerAndGraphSONType.Value;
         }
 
         /// <summary>
@@ -85,7 +89,7 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         /// </summary>
         /// <param name="graphSonData">The GraphSON collection to deserialize.</param>
         /// <returns>The deserialized object.</returns>
-        public dynamic ToObject(IEnumerable<JToken> graphSonData)
+        public virtual dynamic ToObject(IEnumerable<JToken> graphSonData)
         {
             return graphSonData.Select(graphson => ToObject(graphson));
         }
@@ -95,7 +99,7 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         /// </summary>
         /// <param name="jToken">The GraphSON to deserialize.</param>
         /// <returns>The deserialized object.</returns>
-        public dynamic ToObject(JToken jToken)
+        public virtual dynamic ToObject(JToken jToken)
         {
             if (jToken is JArray)
             {
@@ -121,7 +125,7 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         private dynamic ReadTypedValue(JToken typedValue)
         {
             var graphSONType = (string) typedValue[GraphSONTokens.TypeKey];
-            if (!_deserializerByGraphSONType.TryGetValue(graphSONType, out var deserializer))
+            if (!Deserializers.TryGetValue(graphSONType, out var deserializer))
             {
                 throw new InvalidOperationException($"Deserializer for \"{graphSONType}\" not found");
             }

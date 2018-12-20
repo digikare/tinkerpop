@@ -96,18 +96,6 @@ Feature: Step - tail()
       | result |
       | d[7].l |
 
-  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXaX_byXunfold_valuesXnameX_foldX_tailXlocal_2X
-    Given the modern graph
-    And the traversal of
-      """
-      g.V().as("a").out().as("a").out().as("a").select("a").by(__.unfold().values("name").fold()).tail(Scope.local, 2)
-      """
-    When iterated to list
-    Then the result should be unordered
-      | result |
-      | l[josh,ripple] |
-      | l[josh,lop] |
-
   Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXaX_byXunfold_valuesXnameX_foldX_tailXlocal_1X
     Given the modern graph
     And the traversal of
@@ -132,15 +120,6 @@ Feature: Step - tail()
       | ripple |
       | lop |
 
-  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXaX_byXlimitXlocal_0XX_tailXlocal_1X
-    Given the modern graph
-    And the traversal of
-      """
-      g.V().as("a").out().as("a").out().as("a").select("a").by(__.limit(Scope.local, 0)).tail(Scope.local, 1)
-      """
-    When iterated to list
-    Then the result should be empty
-
   Scenario: g_V_asXaX_out_asXbX_out_asXcX_selectXa_b_cX_byXnameX_tailXlocal_2X
     Given the modern graph
     And the traversal of
@@ -164,3 +143,48 @@ Feature: Step - tail()
       | result |
       | m[{"c":"ripple"}] |
       | m[{"c":"lop"}] |
+
+  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXmixed_aX_byXunfold_valuesXnameX_foldX_tailXlocal_1X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").out().as("a").out().as("a").select(Pop.mixed, "a").by(__.unfold().values("name").fold()).tail(Scope.local, 1)
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | ripple |
+      | lop |
+
+  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXmixed_aX_byXunfold_valuesXnameX_foldX_tailXlocalX
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").out().as("a").out().as("a").select(Pop.mixed, "a").by(__.unfold().values("name").fold()).tail(Scope.local)
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | ripple |
+      | lop |
+
+  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXmixed_aX_byXlimitXlocal_0XX_tailXlocal_1X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").out().as("a").out().as("a").select(Pop.mixed, "a").by(__.limit(Scope.local, 0)).tail(Scope.local, 1)
+      """
+    When iterated to list
+    Then the result should be empty
+
+  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXmixed_aX_byXunfold_valuesXnameX_foldX_tailXlocal_2X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").out().as("a").out().as("a").select(Pop.mixed, "a").by(__.unfold().values("name").fold()).tail(Scope.local, 2)
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | l[josh,ripple] |
+      | l[josh,lop] |

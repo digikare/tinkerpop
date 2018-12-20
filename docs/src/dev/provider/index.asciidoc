@@ -22,10 +22,10 @@ image::apache-tinkerpop-logo.png[width=500,link="http://tinkerpop.apache.org"]
 
 = Provider Documentation
 
-TinkerPop exposes a set of interfaces, protocols, and tests that make it possible for third-parties to build libraries
-and systems that plug-in to the TinkerPop stack.  TinkerPop refers to those third-parties as "providers" and this
-documentation is designed to help providers understand what is involved in developing code on these lower levels of
-the TinkerPop API.
+Apache TinkerPop™ exposes a set of interfaces, protocols, and tests that make it possible for third-parties to build
+libraries and systems that plug-in to the TinkerPop stack.  TinkerPop refers to those third-parties as "providers" and
+this documentation is designed to help providers understand what is involved in developing code on these lower levels
+of the TinkerPop API.
 
 This document attempts to address the needs of the different providers that have been identified:
 
@@ -576,9 +576,9 @@ internal class MyTypeReader : IGraphSONDeserializer
     }
 }
 
-var graphsonReader = new GraphSONReader(
+var graphsonReader = new GraphSON3Reader(
     new Dictionary<string, IGraphSONDeserializer> {{MyType.GraphsonType, new MyTypeReader()}});
-var graphsonWriter = new GraphSONWriter(
+var graphsonWriter = new GraphSON3Writer(
     new Dictionary<Type, IGraphSONSerializer> {{typeof(MyType), new MyClassWriter()}});
 
 var gremlinClient = new GremlinClient(new GremlinServer("localhost", 8182), graphsonReader, graphsonWriter);
@@ -701,10 +701,11 @@ in this case when running the mis-configured suite).
 
 There are times when there may be a specific test in the suite that the implementation cannot support (despite the
 features it implements) or should not otherwise be executed.  It is possible for implementers to "opt-out" of a test
-by using the `@Graph.OptOut` annotation.  The following is an example of this annotation usage as taken from
-`HadoopGraph`:
+by using the `@Graph.OptOut` annotation. This annotation can be applied to either a `Graph` instance or a
+`GraphProvider` instance (the latter would typically be used for "opting out" for a particular `Graph` configuration
+that was under test). The following is an example of this annotation usage as taken from `HadoopGraph`:
 
-[source, java]
+[source,java]
 ----
 @Graph.OptIn(Graph.OptIn.SUITE_PROCESS_STANDARD)
 @Graph.OptIn(Graph.OptIn.SUITE_PROCESS_COMPUTER)
@@ -741,7 +742,7 @@ Also note that some of the tests in the Gremlin Test Suite are parameterized tes
 specificity to be properly ignored.  To ignore these types of tests, examine the name template of the parameterized
 tests.  It is defined by a Java annotation that looks like this:
 
-[source, java]
+[source,java]
 @Parameterized.Parameters(name = "expect({0})")
 
 The annotation above shows that the name of each parameterized test will be prefixed with "expect" and have
@@ -787,25 +788,7 @@ downloaded according and when required by the user. Neo4j's GremlinPlugin is pro
 
 [source,java]
 ----
-public class Neo4jGremlinPlugin implements GremlinPlugin {
-
-    private static final String IMPORT = "import ";
-    private static final String DOT_STAR = ".*";
-
-    private static final Set<String> IMPORTS = new HashSet<String>() {{
-        add(IMPORT + Neo4jGraph.class.getPackage().getName() + DOT_STAR);
-    }};
-
-    @Override
-    public String getName() {
-        return "neo4j";
-    }
-
-    @Override
-    public void pluginTo(final PluginAcceptor pluginAcceptor) {
-        pluginAcceptor.addImports(IMPORTS);
-    }
-}
+include::{basedir}/neo4j-gremlin/src/main/java/org/apache/tinkerpop/gremlin/neo4j/jsr223/Neo4jGremlinPlugin.java[]
 ----
 
 With the above plugin implementations, users can now download respective binaries for Gremlin Console, Gremlin Server, etc.
@@ -998,7 +981,8 @@ evaluated and is committed when the script completes (or rolled back if an error
 !=========================================================
 |=========================================================
 
-'`authentication` operation arguments'
+**`authentication` operation arguments**
+
 [width="100%",cols="2,2,9",options="header"]
 |=========================================================
 |Key |Type |Description
@@ -1006,7 +990,8 @@ evaluated and is committed when the script completes (or rolled back if an error
 |saslMechanism |String | The SASL mechanism: `PLAIN` or `GSSAPI`. Note that it is up to the server implementation to use or disregard this setting (default implementation in Gremlin Server ignores it).
 |=========================================================
 
-'`eval` operation arguments'
+**`eval` operation arguments**
+
 [width="100%",cols="2,2,9",options="header"]
 |=========================================================
 |Key |Type |Description
@@ -1043,7 +1028,8 @@ Gremlin Server are deployed, session state is not shared among them.
 !`close` !Close the specified session. Will return a `NO CONTENT` message as confirmation of the close being completed.
 |=========================================================
 
-'`authentication` operation arguments'
+**`authentication` operation arguments**
+
 [width="100%",cols="2,2,9",options="header"]
 |=========================================================
 |Key |Type |Description
@@ -1051,7 +1037,8 @@ Gremlin Server are deployed, session state is not shared among them.
 |sasl |String | *Required* The response to the server authentication challenge.  This value is dependent on the SASL authentication mechanism required by the server and is Base64 encoded.
 |=========================================================
 
-'`eval` operation arguments'
+**`eval` operation arguments**
+
 [width="100%",options="header"]
 |=========================================================
 |Key |Type |Description
@@ -1068,7 +1055,7 @@ example, if the Gremlin Server defines two `TraversalSource` instances named `g1
 to send an alias pair with key of "g" and value of "g2" and thus allow the script to refer to "g2" simply as "g".
 |=========================================================
 
-'`close` operation arguments'
+**`close` operation arguments**
 [width="100%",cols="2,2,9",options="header"]
 |=========================================================
 |Key |Type |Description
@@ -1144,14 +1131,16 @@ operation is available to clear the cache of a specific side-effect.
 !`keys` !Gets all the keys of all side-effects as produced by a previously executed `Traversal`.
 |=========================================================
 
-'`authentication` operation arguments'
+**`authentication` operation arguments**
+
 [width="100%",cols="2,2,9",options="header"]
 |=========================================================
 |Key |Type |Description
 |sasl |String | *Required* The response to the server authentication challenge.  This value is dependent on the SASL authentication mechanism required by the server and is Base64 encoded.
 |=========================================================
 
-'`bytecode` operation arguments'
+**`bytecode` operation arguments**
+
 [width="100%",cols="2,2,9",options="header"]
 |=========================================================
 |Key |Type |Description
@@ -1166,14 +1155,16 @@ one key value pair present (since only one `Traversal` is being submitted, there
 single alias).
 |=========================================================
 
-'`close` operation arguments'
+**`close` operation arguments**
+
 [width="100%",cols="2,2,9",options="header"]
 |=========================================================
 |Key |Type |Description
 |sideEffect |UUID | *Required* The unique identifier for the request that original submitted the traversal (side-effects are keyed by that value)
 |=========================================================
 
-'`gather` operation arguments'
+**`gather` operation arguments**
+
 [width="100%",cols="2,2,9",options="header"]
 |=========================================================
 |Key |Type |Description
@@ -1195,7 +1186,8 @@ streamed side-effect data should be treated on the client. It provides a hint as
 rolled back up into a single object or simply left as-is. There are four values for "aggregateTo": `bulkset`, `list`,
 `map`, `set` and `none`.
 
-'`keys` operation arguments'
+**`keys` operation arguments**
+
 [width="100%",cols="2,2,9",options="header"]
 |=========================================================
 |Key |Type |Description
@@ -1226,46 +1218,99 @@ NOTE: Gremlin Server does not support the "authorization identity" as described 
 
 image:gremlin-plugin.png[width=125]
 
-Plugins provide a way to expand the features of Gremlin Console and Gremlin Server. The first step to developing a
-plugin is to implement the `GremlinPlugin` interface:
+Plugins provide a way to expand the features of a `GremlinScriptEngine`, which stands at that core of both Gremlin
+Console and Gremlin Server. Providers may wish to create plugins for a variety of reasons, but some common examples
+include:
+
+* Initialize the `GremlinScriptEngine` application with important classes so that the user doesn't need to type their
+own imports.
+* Place specific objects in the bindings of the `GremlinScriptEngine` for the convenience of the user.
+* Bootstrap the `GremlinScriptEngine` with custom functions so that they are ready for usage at startup.
+
+The first step to developing a plugin is to implement the link:http://tinkerpop.apache.org/javadocs/x.y.z/full/org/apache/tinkerpop/gremlin/jsr223/GremlinPlugin.html[GremlinPlugin]
+interface:
 
 [source,java]
 ----
-include::{basedir}/gremlin-groovy/src/main/java/org/apache/tinkerpop/gremlin/groovy/plugin/GremlinPlugin.java[]
+include::{basedir}/gremlin-core/src/main/java/org/apache/tinkerpop/gremlin/jsr223/GremlinPlugin.java[]
 ----
 
 The most simple plugin and the one most commonly implemented will likely be one that just provides a list of classes
-to import to the Gremlin Console.  This type of plugin is the easiest way for implementers of the TinkerPop Structure
-and Process APIs to make their implementations available to users.  The TinkerGraph implementation has just such a plugin:
+for import.  This type of plugin is the easiest way for implementers of the TinkerPop Structure and Process APIs to
+make their implementations available to users.  The TinkerGraph implementation has just such a plugin:
 
 [source,java]
 ----
-include::{basedir}/tinkergraph-gremlin/src/main/java/org/apache/tinkerpop/gremlin/tinkergraph/groovy/plugin/TinkerGraphGremlinPlugin.java[]
+include::{basedir}/tinkergraph-gremlin/src/main/java/org/apache/tinkerpop/gremlin/tinkergraph/jsr223/TinkerGraphGremlinPlugin.java[]
 ----
 
-Note that the plugin provides a unique name for the plugin which follows a namespaced pattern as _namespace_._plugin-name_
-(e.g. "tinkerpop.hadoop" - "tinkerpop" is the reserved namespace for TinkerPop maintained plugins). To make TinkerGraph
-classes available to the Console, the `PluginAcceptor` is given a `Set` of imports to provide to the plugin host.  The
-`PluginAcceptor` essentially behaves as an abstraction to the "host" that is handling the `GremlinPlugin`.  `GremlinPlugin`
-implementations may be hosted by the Console as well as the `ScriptEngine` in Gremlin Server.  Obviously, registering
-new commands and other operations that are specific to the Groovy Shell don't make sense there.  Write the code for
-the plugin defensively by checking the `GremlinPlugin.env` key in the `PluginAcceptor.environment()` to understand
-which environment the plugin is being used in.
+This plugin extends from the abstract base class of link:http://tinkerpop.apache.org/javadocs/x.y.z/full/org/apache/tinkerpop/gremlin/jsr223/AbstractGremlinPlugin.html[AbstractGremlinPlugin]
+which provides some default implementations of the `GremlinPlugin` methods. It simply allows those who extend from it
+to be able to just supply the name of the module and a list of link:http://tinkerpop.apache.org/javadocs/x.y.z/full/org/apache/tinkerpop/gremlin/jsr223/Customizer.html[Customizer]
+instances to apply to the `GremlinScriptEngine`. In this case, the TinkerGraph plugin just needs an
+link:http://tinkerpop.apache.org/javadocs/x.y.z/full/org/apache/tinkerpop/gremlin/jsr223/ImportCustomizer.html[ImportCustomizer]
+which describes the list of classes to import when the plugin is activated and applied to the `GremlinScriptEngine`.
 
-There is one other step to follow to ensure that the `GremlinPlugin` is visible to its hosts.  `GremlinPlugin`
-implementations are loaded via link:http://docs.oracle.com/javase/8/docs/api/java/util/ServiceLoader.html[ServiceLoader]
+The `ImportCustomizer` is just one of several provided `Customizer` implementations that can be used in conjunction
+with plugin development:
+
+* link:http://tinkerpop.apache.org/javadocs/x.y.z/full/org/apache/tinkerpop/gremlin/jsr223/BindingCustomizer.html[BindingCustomizer] - Inject a key/value pair into the global bindings of the `GremlinScriptEngine` instances
+* link:http://tinkerpop.apache.org/javadocs/x.y.z/full/org/apache/tinkerpop/gremlin/jsr223/ImportCustomizer.html[ImportCustomizer] - Add imports to a `GremlinScriptEngine`
+* link:http://tinkerpop.apache.org/javadocs/x.y.z/full/org/apache/tinkerpop/gremlin/jsr223/ScriptCustomizer.html[ScriptCustomizer] - Execute a script on a `GremlinScriptEngine` at startup
+
+Individual `GremlinScriptEngine` instances may have their own `Customizer` instances that can be used only with that
+engine - e.g. `gremlin-groovy` has some that are specific to controlling the Groovy compiler configuration. Developing
+a new `Customizer` implementation is not really possible without changes to TinkerPop, as the framework is not designed
+to respond to external ones. The base `Customizer` implementations listed above should cover most needs.
+
+A `GremlinPlugin` must support one of two instantiation models so that it can be instantiated from configuration files
+for use in various situations - e.g. Gremlin Server. The first option is to use a static initializer given a method
+with the following signature:
+
+[source,java]
+----
+public static GremlinPlugin instance()
+----
+
+The limitation with this approach is that it does not provide a way to supply any configuration to the plugin so it
+tends to only be useful for fairly simplistic plugins. The more advanced approach is to provide a "builder" given a
+method with the following signature:
+
+[source,java]
+----
+public static Builder build()
+----
+
+It doesn't really matter what kind of class is returned from `build` so long as it follows a "Builder" pattern, where
+methods on that object return an instance of itself, so that builder methods can be chained together prior to calling
+a final `create` method as follows:
+
+[source,java]
+----
+public GremlinPlugin create()
+----
+
+Please see the link:http://tinkerpop.apache.org/javadocs/x.y.z/full/org/apache/tinkerpop/gremlin/jsr223/ImportGremlinPlugin.html[ImportGremlinPlugin]
+for an example of what implementing a `Builder` might look like in this context.
+
+Note that the plugin provides a unique name for the plugin which follows a namespaced pattern as _namespace_._plugin-name_
+(e.g. "tinkerpop.hadoop" - "tinkerpop" is the reserved namespace for TinkerPop maintained plugins).
+
+For plugins that will work with Gremlin Console, there is one other step to follow to ensure that the `GremlinPlugin`
+will work there.  The console loads `GremlinPlugin` instances via link:http://docs.oracle.com/javase/8/docs/api/java/util/ServiceLoader.html[ServiceLoader]
 and therefore need a resource file added to the jar file where the plugin exists.  Add a file called
-`org.apache.tinkerpop.gremlin.groovy.plugin.GremlinPlugin` to `META-INF.services`.  In the case of the TinkerGraph
+`org.apache.tinkerpop.gremlin.jsr223.GremlinPlugin` to `META-INF/services`.  In the case of the TinkerGraph
 plugin above, that file will have this line in it:
 
 [source,java]
 ----
-include::{basedir}/tinkergraph-gremlin/src/main/resources/META-INF/services/org.apache.tinkerpop.gremlin.groovy.plugin.GremlinPlugin[]
+include::{basedir}/tinkergraph-gremlin/src/main/resources/META-INF/services/org.apache.tinkerpop.gremlin.jsr223.GremlinPlugin[]
 ----
 
 Once the plugin is packaged, there are two ways to test it out:
 
-. Copy the jar and its dependencies to the Gremlin Console path and start it.
+. Copy the jar and its dependencies to the Gremlin Console path and start it. It is preferrable that the plugin is
+copied to the `/ext/_plugin_name_` directory.
 . Start Gremlin Console and try the `:install` command: `:install com.company my-plugin 1.0.0`.
 
 In either case, once one of these two approaches is taken, the jars and their dependencies are available to the
@@ -1304,12 +1349,11 @@ find it.
 
 [source,java]
 ----
-include::{basedir}/gremlin-groovy/src/main/java/org/apache/tinkerpop/gremlin/groovy/plugin/RemoteAcceptor.java[]
+include::{basedir}/gremlin-core/src/main/java/org/apache/tinkerpop/gremlin/jsr223/console/RemoteAcceptor.java[]
 ----
 
-The `RemoteAcceptor` implementation ties to a `GremlinPlugin` and will only be executed when in use with the Gremlin
-Console plugin host.  Simply instantiate and return a `RemoteAcceptor` in the `GremlinPlugin.remoteAcceptor()` method
-of the plugin implementation.  Generally speaking, each call to `remoteAcceptor()` should produce a new instance of
-a `RemoteAcceptor`.  It will likely be necessary that you provide context from the `GremlinPlugin` to the
-`RemoteAcceptor` plugin.  For example, the `RemoteAcceptor` implementation might require an instance of `Groovysh`
-to provide a way to dynamically evaluate a script provided to it so that it can process the results in a different way.
+The `RemoteAcceptor` can be bound to a `GremlinPlugin` by adding a `ConsoleCustomizer` implementation to the list of
+`Customizer` instances that are returned from the `GremlinPlugin`. The `ConsoleCustomizer` will only be executed when
+in use with the Gremlin Console plugin host.  Simply instantiate and return a `RemoteAcceptor` in the
+`ConsoleCustomizer.getRemoteAcceptor(GremlinShellEnvironment)` method.  Generally speaking, each call to
+`getRemoteAcceptor(GremlinShellEnvironment)` should produce a new instance of a `RemoteAcceptor`.

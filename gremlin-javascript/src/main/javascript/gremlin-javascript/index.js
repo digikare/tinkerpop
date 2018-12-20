@@ -33,23 +33,26 @@ const Translator = require('./lib/process/translator');
 const utils = require('./lib/utils');
 const DriverRemoteConnection = require('./lib/driver/driver-remote-connection');
 const Client = require('./lib/driver/client');
+const ResultSet = require('./lib/driver/result-set');
 const Authenticator = require('./lib/driver/auth/authenticator');
 const PlainTextSaslAuthenticator = require('./lib/driver/auth/plain-text-sasl-authenticator');
+const AnonymousTraversalSource = require('./lib/process/anonymous-traversal');
 
 module.exports = {
   driver: {
     RemoteConnection: rc.RemoteConnection,
     RemoteStrategy: rc.RemoteStrategy,
     RemoteTraversal: rc.RemoteTraversal,
-    DriverRemoteConnection: DriverRemoteConnection,
-    Client: Client,
+    DriverRemoteConnection,
+    Client,
+    ResultSet,
     auth: {
-      Authenticator: Authenticator,
-      PlainTextSaslAuthenticator: PlainTextSaslAuthenticator
+      Authenticator,
+      PlainTextSaslAuthenticator
     }
   },
   process: {
-    Bytecode: Bytecode,
+    Bytecode,
     EnumValue: t.EnumValue,
     P: t.P,
     Traversal: t.Traversal,
@@ -70,7 +73,9 @@ module.exports = {
     GraphTraversal: gt.GraphTraversal,
     GraphTraversalSource: gt.GraphTraversalSource,
     statics: gt.statics,
-    Translator: Translator
+    Translator,
+    traversal: AnonymousTraversalSource.traversal,
+    AnonymousTraversalSource
   },
   structure: {
     io: {

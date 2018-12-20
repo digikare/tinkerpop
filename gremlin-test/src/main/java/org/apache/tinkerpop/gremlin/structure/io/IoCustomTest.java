@@ -28,6 +28,8 @@ import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONIo;
 import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONVersion;
 import org.apache.tinkerpop.gremlin.structure.io.graphson.TypeInfo;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoIo;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoVersion;
 import org.apache.tinkerpop.gremlin.structure.io.util.CustomId;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.apache.tinkerpop.shaded.jackson.databind.module.SimpleModule;
@@ -58,18 +60,25 @@ public class IoCustomTest extends AbstractGremlinTest {
         final SimpleModule moduleV1d0 = new SimpleModule();
         moduleV1d0.addSerializer(CustomId.class, new CustomId.CustomIdJacksonSerializerV1d0());
 
-        final SimpleModule moduleV2d0 = new CustomId.CustomIdTinkerPopJacksonModule();
+        final SimpleModule moduleV2d0 = new CustomId.CustomIdTinkerPopJacksonModuleV2d0();
+        final SimpleModule modulev3d0 = new CustomId.CustomIdTinkerPopJacksonModuleV3d0();
 
         return Arrays.asList(new Object[][]{
                 {"graphson-v1-embedded", true,
-                        (Function<Graph, GraphReader>) g -> g.io(IoCore.graphson()).reader().mapper(g.io(GraphSONIo.build(GraphSONVersion.V1_0)).mapper().addCustomModule(moduleV1d0).embedTypes(true).create()).create(),
-                        (Function<Graph, GraphWriter>) g -> g.io(IoCore.graphson()).writer().mapper(g.io(GraphSONIo.build(GraphSONVersion.V1_0)).mapper().addCustomModule(moduleV1d0).embedTypes(true).create()).create()},
+                        (Function<Graph, GraphReader>) g -> g.io(GraphSONIo.build(GraphSONVersion.V1_0)).reader().mapper(g.io(GraphSONIo.build(GraphSONVersion.V1_0)).mapper().addCustomModule(moduleV1d0).typeInfo(TypeInfo.PARTIAL_TYPES).create()).create(),
+                        (Function<Graph, GraphWriter>) g -> g.io(GraphSONIo.build(GraphSONVersion.V1_0)).writer().mapper(g.io(GraphSONIo.build(GraphSONVersion.V1_0)).mapper().addCustomModule(moduleV1d0).typeInfo(TypeInfo.PARTIAL_TYPES).create()).create()},
                 {"graphson-v2-embedded", true,
-                        (Function<Graph, GraphReader>) g -> g.io(IoCore.graphson()).reader().mapper(g.io(GraphSONIo.build(GraphSONVersion.V2_0)).mapper().addCustomModule(moduleV2d0).typeInfo(TypeInfo.PARTIAL_TYPES).create()).create(),
-                        (Function<Graph, GraphWriter>) g -> g.io(IoCore.graphson()).writer().mapper(g.io(GraphSONIo.build(GraphSONVersion.V2_0)).mapper().addCustomModule(moduleV2d0).typeInfo(TypeInfo.PARTIAL_TYPES).create()).create()},
-                {"gryo", true,
-                        (Function<Graph, GraphReader>) g -> g.io(IoCore.gryo()).reader().mapper(g.io(IoCore.gryo()).mapper().addCustom(CustomId.class).create()).create(),
-                        (Function<Graph, GraphWriter>) g -> g.io(IoCore.gryo()).writer().mapper(g.io(IoCore.gryo()).mapper().addCustom(CustomId.class).create()).create()}
+                        (Function<Graph, GraphReader>) g -> g.io(GraphSONIo.build(GraphSONVersion.V2_0)).reader().mapper(g.io(GraphSONIo.build(GraphSONVersion.V2_0)).mapper().addCustomModule(moduleV2d0).typeInfo(TypeInfo.PARTIAL_TYPES).create()).create(),
+                        (Function<Graph, GraphWriter>) g -> g.io(GraphSONIo.build(GraphSONVersion.V2_0)).writer().mapper(g.io(GraphSONIo.build(GraphSONVersion.V2_0)).mapper().addCustomModule(moduleV2d0).typeInfo(TypeInfo.PARTIAL_TYPES).create()).create()},
+                {"graphson-v3", true,
+                        (Function<Graph, GraphReader>) g -> g.io(GraphSONIo.build(GraphSONVersion.V3_0)).reader().mapper(g.io(GraphSONIo.build(GraphSONVersion.V3_0)).mapper().addCustomModule(modulev3d0).create()).create(),
+                        (Function<Graph, GraphWriter>) g -> g.io(GraphSONIo.build(GraphSONVersion.V3_0)).writer().mapper(g.io(GraphSONIo.build(GraphSONVersion.V3_0)).mapper().addCustomModule(modulev3d0).create()).create()},
+                {"gryo-v1", true,
+                        (Function<Graph, GraphReader>) g -> g.io(GryoIo.build(GryoVersion.V1_0)).reader().mapper(g.io(GryoIo.build(GryoVersion.V1_0)).mapper().version(GryoVersion.V1_0).addCustom(CustomId.class).create()).create(),
+                        (Function<Graph, GraphWriter>) g -> g.io(GryoIo.build(GryoVersion.V1_0)).writer().mapper(g.io(GryoIo.build(GryoVersion.V1_0)).mapper().version(GryoVersion.V1_0).addCustom(CustomId.class).create()).create()},
+                {"gryo-v3", true,
+                        (Function<Graph, GraphReader>) g -> g.io(GryoIo.build(GryoVersion.V3_0)).reader().mapper(g.io(GryoIo.build(GryoVersion.V3_0)).mapper().version(GryoVersion.V3_0).addCustom(CustomId.class).create()).create(),
+                        (Function<Graph, GraphWriter>) g -> g.io(GryoIo.build(GryoVersion.V3_0)).writer().mapper(g.io(GryoIo.build(GryoVersion.V3_0)).mapper().version(GryoVersion.V3_0).addCustom(CustomId.class).create()).create()}
         });
     }
 

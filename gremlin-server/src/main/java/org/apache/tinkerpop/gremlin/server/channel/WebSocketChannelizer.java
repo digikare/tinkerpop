@@ -18,7 +18,6 @@
  */
 package org.apache.tinkerpop.gremlin.server.channel;
 
-import io.netty.channel.EventLoopGroup;
 import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
 import org.apache.tinkerpop.gremlin.server.AbstractChannelizer;
 import org.apache.tinkerpop.gremlin.server.auth.AllowAllAuthenticator;
@@ -58,7 +57,7 @@ public class WebSocketChannelizer extends AbstractChannelizer {
     private AbstractAuthenticationHandler authenticationHandler;
 
     @Override
-    public void init(final ServerGremlinExecutor<EventLoopGroup> serverGremlinExecutor) {
+    public void init(final ServerGremlinExecutor serverGremlinExecutor) {
         super.init(serverGremlinExecutor);
 
         gremlinResponseFrameEncoder = new GremlinResponseFrameEncoder();
@@ -96,7 +95,8 @@ public class WebSocketChannelizer extends AbstractChannelizer {
 
         pipeline.addLast(PIPELINE_HTTP_RESPONSE_ENCODER, new HttpResponseEncoder());
 
-        pipeline.addLast(PIPELINE_REQUEST_HANDLER, new WebSocketServerProtocolHandler(GREMLIN_ENDPOINT, null, false, settings.maxContentLength));
+        pipeline.addLast(PIPELINE_REQUEST_HANDLER, new WebSocketServerProtocolHandler(GREMLIN_ENDPOINT,
+                null, false, settings.maxContentLength));
 
         if (logger.isDebugEnabled())
             pipeline.addLast(new LoggingHandler("log-aggregator-encoder", LogLevel.DEBUG));
@@ -128,7 +128,7 @@ public class WebSocketChannelizer extends AbstractChannelizer {
         final String authenticationHandler = authSettings.authenticationHandler;
         if (authenticationHandler == null) {
             //Keep things backwards compatible
-            return new SaslAuthenticationHandler(authenticator);
+            return new SaslAuthenticationHandler(authenticator, authSettings);
         } else {
             return createAuthenticationHandler(authSettings);
         }

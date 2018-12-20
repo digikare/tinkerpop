@@ -21,7 +21,7 @@ image::apache-tinkerpop-logo.png[width=500,link="http://tinkerpop.apache.org"]
 
 == Getting Started
 
-link:http://tinkerpop.apache.org[Apache TinkerPop] is an open source Graph Computing Framework. Within itself, TinkerPop
+link:http://tinkerpop.apache.org[Apache TinkerPop™] is an open source Graph Computing Framework. Within itself, TinkerPop
 represents a large collection of capabilities and technologies and, in its wider ecosystem, an additionally extended
 world of link:http://tinkerpop.apache.org/#graph-systems[third-party contributed] graph libraries and
 systems. TinkerPop's ecosystem can appear complex to newcomers of all experience, especially when glancing at the
@@ -200,25 +200,25 @@ as an example. First, you need to create this graph:
 ----
 graph = TinkerGraph.open()
 g = graph.traversal()
-g.addV("person").property(id, 1).property("name", "marko").property("age", 29).as('v1').
-  addV("software").property(id, 3).property("name", "lop").property("lang", "java").as('v2').
-  addE("created").property(id, 9).property("weight", 0.4).from('v1').to('v2')
+v1 = g.addV("person").property(id, 1).property("name", "marko").property("age", 29).next()
+v2 = g.addV("software").property(id, 3).property("name", "lop").property("lang", "java").next()
+g.addE("created").from(v1).to(v2).property(id, 9).property("weight", 0.4)
 ----
 
-There are a number of important things to consider in the above code. First, recall that `id` is "reserved" for
-special usage in TinkerPop and is a members of the enum, `T`. The `T` enum has other important structural values like
-`label` as well. Note that the Gremlin Console link:https://docs.oracle.com/javase/8/docs/technotes/guides/language/static-import.html[statically imports]
-the enum values of `T`, which allows you to access them without having to specify their owning enum. Think of it as a
-shorthand form that enables a more fluid code style. You would normally refer to them as `T.id` and `T.label`. Without
+There are a number of important things to consider in the above code. First, recall that `id` is
+"reserved" for special usage in TinkerPop and are members of the enum, `T`. Those "keys" supplied to the creation
+method are link:https://docs.oracle.com/javase/8/docs/technotes/guides/language/static-import.html[statically imported]
+to the console, which allows you to access them without having to specify their owning enum. Think of it as a
+shorthand form that enables a more fluid code style. You would normally refer to it as `T.id`. Without
 that static importing you would instead have to write:
 
 [gremlin-groovy]
 ----
 graph = TinkerGraph.open()
 g = graph.traversal()
-g.addV("person").property(T.id, 1).property("name", "marko").property("age", 29).as('v1').
-  addV("software").property(T.id, 3).property("name", "lop").property("lang", "java").as('v2').
-  addE("created").property(T.id, 9).property("weight", 0.4).from('v1').to('v2')
+v1 = g.addV("person").property(T.id, 1).property("name", "marko").property("age", 29).next()
+v2 = g.addV("software").property(T.id, 3).property("name", "lop").property("lang", "java").next()
+g.addE("created").from(v1).to(v2).property(T.id, 9).property("weight", 0.4)
 ----
 
 NOTE: The fully qualified name for `T` is `org.apache.tinkerpop.gremlin.structure.T`. Another important static import
@@ -228,8 +228,9 @@ for the creation of link:http://tinkerpop.apache.org/docs/x.y.z/reference/#graph
 Second, don't forget that you are working with TinkerGraph which allows for identifier assignment. That is _not_ the
 case with most graph databases.
 
-Finally, the `as()`-steps label the value held at a particular step so that you can reference back to it later in the
-traversal. In this case, that allows you to reference both vertices as "v1" and "v2" during edge creation.
+Finally, the label for an `Edge` is required and is thus part of the method signature of `addEdge()`. It is the first
+parameter supplied, followed by the `Vertex` to which `v1` should be connected. Therefore, this usage of `addEdge` is
+creating an edge that goes _out_ of `v1` and into `v2` with a label of "created".
 
 === Graph Traversal - Staying Simple
 
@@ -502,20 +503,27 @@ graph.createIndex('userId', Vertex.class) <1>
 g = graph.traversal()
 
 getOrCreate = { id ->
-  g.V().has('userId', id).tryNext().orElseGet{ g.addV().property('userId', id).next() }
+  g.V().has('userId', id).
+    fold().
+    coalesce(unfold(),
+             addV('user').property('userId', id)).next()  <2>
 }
 
 new File('wiki-Vote.txt').eachLine {
   if (!it.startsWith("#")){
-    (fromVertex, toVertex) = it.split('\t').collect(getOrCreate) <2>
-    fromVertex.addEdge('votesFor', toVertex)
+    (fromVertex, toVertex) = it.split('\t').collect(getOrCreate) <3>
+    g.addE('votesFor').from(fromVertex).to(toVertex).iterate()
   }
 }
 ----
 
 <1> To ensure fast lookups of vertices, we need an index. The `createIndex()` method is a method native to
 TinkerGraph. Please consult your graph databases documentation for their index creation approaches.
-<2> We are iterating each line of the `wiki-Vote.txt` file and this line splits the line on the delimiter, then
+<2> This "get or create" traversal gets a a vertex if it already exists and if not creates it. It uses `coalesce()` in
+a clever way by first determining if the list of vertices produced by the previous `fold()` has anything in it by
+testing the result of `unfold()`. If `unfold()` returns nothing then that vertex doesn't exist and the subsequent
+`addV()` inner traversal can be called to create it.
+<3> We are iterating each line of the `wiki-Vote.txt` file and this line splits the line on the delimiter, then
 uses some neat Groovy syntax to apply the `getOrCreate()` function to each of the two `userId` fields encountered in
 the line and stores those vertices in the `fromVertex` and `toVertex` variables respectively.
 
@@ -536,7 +544,7 @@ provides a generalized method for loading graphs of virtually any size.
 
 image:gremlin-server-protocol.png[width=325,float=right] link:http://tinkerpop.apache.org/docs/x.y.z/reference/#gremlin-server[Gremlin Server]
 provides a way to remotely execute Gremlin scripts against one or more `Graph` instances hosted within it. It does
-this by exposing different endpoints, such as link:http://tinkerpop.apache.org/docs/x.y.z/reference/#_connecting_via_rest[REST]
+this by exposing different endpoints, such as link:http://tinkerpop.apache.org/docs/x.y.z/reference/#_connecting_via_http[HTTP]
 and link:http://tinkerpop.apache.org/docs/x.y.z/reference/#_connecting_via_java[WebSocket], which allow a request
 containing a Gremlin script to be processed with results returned.
 
@@ -562,20 +570,25 @@ $ curl -X POST -d "{\"gremlin\":\"g.V(x).out().values('name')\", \"language\":\"
 [source,json]
 ----
 {
-    "requestId": "abe3be05-1e86-481a-85e0-c59ad8a37c6b",
-    "status": {
-        "message": "",
-        "code": 200,
-        "attributes": {}
-    },
-    "result": {
-        "data": [
-            "lop",
-            "vadas",
-            "josh"
-        ],
-        "meta": {}
-    }
+	"requestId": "f67dbfff-b33a-4ae3-842d-c6e7c97b246b",
+	"status": {
+		"message": "",
+		"code": 200,
+		"attributes": {
+			"@type": "g:Map",
+			"@value": []
+		}
+	},
+	"result": {
+		"data": {
+			"@type": "g:List",
+			"@value": ["lop", "vadas", "josh"]
+		},
+		"meta": {
+			"@type": "g:Map",
+			"@value": []
+		}
+	}
 }
 ----
 

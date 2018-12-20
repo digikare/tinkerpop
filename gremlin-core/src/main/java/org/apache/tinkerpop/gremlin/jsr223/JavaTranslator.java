@@ -50,8 +50,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class JavaTranslator<S extends TraversalSource, T extends Traversal.Admin<?, ?>> implements Translator.StepTranslator<S, T> {
 
-    private static final boolean IS_TESTING = Boolean.valueOf(System.getProperty("is.testing", "false"));
-
     private final S traversalSource;
     private final Class<?> anonymousTraversal;
     private static final Map<Class<?>, Map<String, List<Method>>> GLOBAL_METHOD_CACHE = new ConcurrentHashMap<>();
@@ -78,10 +76,6 @@ public final class JavaTranslator<S extends TraversalSource, T extends Traversal
         TraversalSource dynamicSource = this.traversalSource;
         Traversal.Admin<?, ?> traversal = null;
         for (final Bytecode.Instruction instruction : bytecode.getSourceInstructions()) {
-            if (IS_TESTING &&
-                    instruction.getOperator().equals(TraversalSource.Symbols.withStrategies) &&
-                    instruction.getArguments()[0].toString().contains("TranslationStrategy"))
-                continue;
             dynamicSource = (TraversalSource) invokeMethod(dynamicSource, TraversalSource.class, instruction.getOperator(), instruction.getArguments());
         }
         boolean spawned = false;
@@ -262,10 +256,8 @@ public final class JavaTranslator<S extends TraversalSource, T extends Traversal
     private synchronized static void buildMethodCache(final Object delegate, final Map<String, List<Method>> methodCache) {
         if (methodCache.isEmpty()) {
             for (final Method method : delegate.getClass().getMethods()) {
-                if (!(method.getName().equals("addV") && method.getParameterCount() == 1 && method.getParameters()[0].getType().equals(Object[].class))) { // hack cause its hard to tell Object[] vs. String :|
-                    final List<Method> list = methodCache.computeIfAbsent(method.getName(), k -> new ArrayList<>());
-                    list.add(method);
-                }
+                final List<Method> list = methodCache.computeIfAbsent(method.getName(), k -> new ArrayList<>());
+                list.add(method);
             }
             GLOBAL_METHOD_CACHE.put(delegate.getClass(), methodCache);
         }

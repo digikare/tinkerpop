@@ -60,6 +60,7 @@ class Traversal(object):
         return set(iter(self))
 
     def iterate(self):
+        self.bytecode.add_step("none")
         while True:
             try: self.nextTraverser()
             except StopIteration: return self
@@ -141,14 +142,16 @@ statics.add_static('OUT', Direction.OUT)
 statics.add_static('IN', Direction.IN)
 statics.add_static('BOTH', Direction.BOTH)
 
-GraphSONVersion = Enum('GraphSONVersion', ' V1_0 V2_0')
+GraphSONVersion = Enum('GraphSONVersion', ' V1_0 V2_0 V3_0')
 
 statics.add_static('V1_0', GraphSONVersion.V1_0)
 statics.add_static('V2_0', GraphSONVersion.V2_0)
+statics.add_static('V3_0', GraphSONVersion.V3_0)
 
-GryoVersion = Enum('GryoVersion', ' V1_0')
+GryoVersion = Enum('GryoVersion', ' V1_0 V3_0')
 
 statics.add_static('V1_0', GryoVersion.V1_0)
+statics.add_static('V3_0', GryoVersion.V3_0)
 
 Operator = Enum('Operator', ' addAll and_ assign div max min minus mult or_ sum sumLong')
 
@@ -164,26 +167,25 @@ statics.add_static('or_', Operator.or_)
 statics.add_static('addAll', Operator.addAll)
 statics.add_static('sumLong', Operator.sumLong)
 
-Order = Enum('Order', ' decr incr keyDecr keyIncr shuffle valueDecr valueIncr')
+Order = Enum('Order', ' asc decr desc incr shuffle')
 
 statics.add_static('incr', Order.incr)
 statics.add_static('decr', Order.decr)
-statics.add_static('keyIncr', Order.keyIncr)
-statics.add_static('valueIncr', Order.valueIncr)
-statics.add_static('keyDecr', Order.keyDecr)
-statics.add_static('valueDecr', Order.valueDecr)
 statics.add_static('shuffle', Order.shuffle)
+statics.add_static('asc', Order.asc)
+statics.add_static('desc', Order.desc)
 
 Pick = Enum('Pick', ' any none')
 
 statics.add_static('any', Pick.any)
 statics.add_static('none', Pick.none)
 
-Pop = Enum('Pop', ' all_ first last')
+Pop = Enum('Pop', ' all_ first last mixed')
 
 statics.add_static('first', Pop.first)
 statics.add_static('last', Pop.last)
 statics.add_static('all_', Pop.all_)
+statics.add_static('mixed', Pop.mixed)
 
 Scope = Enum('Scope', ' global_ local')
 

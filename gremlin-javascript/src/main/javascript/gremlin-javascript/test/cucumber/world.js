@@ -24,9 +24,8 @@
 
 const defineSupportCode = require('cucumber').defineSupportCode;
 const helper = require('../helper');
-const graphModule = require('../../lib/structure/graph');
+const traversal = require('../../lib/process/anonymous-traversal').traversal;
 const graphTraversalModule = require('../../lib/process/graph-traversal');
-const Graph = graphModule.Graph;
 const __ = graphTraversalModule.statics;
 
 defineSupportCode(function (methods) {
@@ -51,7 +50,7 @@ defineSupportCode(function (methods) {
 
   TinkerPopWorld.prototype.cleanEmptyGraph = function () {
     const connection = this.cache['empty'].connection;
-    const g = new Graph().traversal().withRemote(connection);
+    const g = traversal().withRemote(connection);
     return g.V().drop().toList();
   };
 
@@ -99,28 +98,26 @@ defineSupportCode(function (methods) {
 });
 
 function getVertices(connection) {
-  const g = new Graph().traversal().withRemote(connection);
+  const g = traversal().withRemote(connection);
   return g.V().group().by('name').by(__.tail()).next().then(it => it.value);
 }
 
 function getEdges(connection) {
-  const g = new Graph().traversal().withRemote(connection);
+  const g = traversal().withRemote(connection);
   return g.E().group()
     .by(__.project("o", "l", "i").by(__.outV().values("name")).by(__.label()).by(__.inV().values("name")))
     .by(__.tail())
     .next()
     .then(it => {
       const edges = {};
-      Object.keys(it.value).map(key => {
-        edges[getEdgeKey(key)] = it.value[key];
+      it.value.forEach((v, k) => {
+        edges[getEdgeKey(k)] = v;
       });
       return edges;
     });
 }
 
 function getEdgeKey(key) {
-  const o = /o=(.+?)[,}]/.exec(key)[1];
-  const l = /l=(.+?)[,}]/.exec(key)[1];
-  const i = /i=(.+?)[,}]/.exec(key)[1];
-  return o + "-" + l + "->" + i;
+  // key is a map
+  return key.get('o') + "-" + key.get('l') + "->" + key.get('i');
 }

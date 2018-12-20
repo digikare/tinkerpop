@@ -22,17 +22,14 @@ package org.apache.tinkerpop.gremlin.python.jsr223;
 import org.apache.commons.configuration.Configuration;
 import org.apache.tinkerpop.gremlin.AbstractGraphProvider;
 import org.apache.tinkerpop.gremlin.LoadGraphWith;
+import org.apache.tinkerpop.gremlin.TestHelper;
 import org.apache.tinkerpop.gremlin.jsr223.JavaTranslator;
 import org.apache.tinkerpop.gremlin.jsr223.ScriptEngineCache;
-import org.apache.tinkerpop.gremlin.process.traversal.TraversalInterruptionComputerTest;
-import org.apache.tinkerpop.gremlin.process.traversal.TraversalInterruptionTest;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
-import org.apache.tinkerpop.gremlin.process.traversal.step.map.ProgramTest;
-import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.ElementIdStrategyProcessTest;
-import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.EventStrategyProcessTest;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.TranslationStrategy;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
+import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONVersion;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerEdge;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerElement;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
@@ -42,7 +39,6 @@ import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerVertex;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerVertexProperty;
 
 import javax.script.ScriptException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -52,30 +48,34 @@ import java.util.Set;
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
  */
+@Graph.OptOut(
+        test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.ProgramTest",
+        method = "*",
+        reason = "Reason requires investigation")
+@Graph.OptOut(
+        test = "org.apache.tinkerpop.gremlin.process.traversal.TraversalInterruptionTest",
+        method = "*",
+        reason = "Reason requires investigation")
+@Graph.OptOut(
+        test = "org.apache.tinkerpop.gremlin.process.traversal.TraversalInterruptionComputerTest",
+        method = "*",
+        reason = "Reason requires investigation")
+@Graph.OptOut(
+        test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.EventStrategyProcessTest",
+        method = "*",
+        reason = "Strategy not properly supported by Bytecode based traversals")
+@Graph.OptOut(
+        test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.ElementIdStrategyProcessTest",
+        method = "*",
+        reason = "Strategy not properly supported by Bytecode based traversals")
 public class PythonProvider extends AbstractGraphProvider {
 
     protected static final boolean IMPORT_STATICS = new Random().nextBoolean();
 
+
     static {
         JythonScriptEngineSetup.setup();
     }
-
-    private static Set<String> SKIP_TESTS = new HashSet<>(Arrays.asList(
-            "testProfileStrategyCallback",
-            "testProfileStrategyCallbackSideEffect",
-            "g_withSideEffectXa_setX_V_both_name_storeXaX_capXaX",
-            "g_VX1X_out_injectXv2X_name",
-            "shouldNeverPropagateANoBulkTraverser",
-            "shouldNeverPropagateANullValuedTraverser",
-            "shouldHidePartitionKeyForValues",
-            "g_withSackXBigInteger_TEN_powX1000X_assignX_V_localXoutXknowsX_barrierXnormSackXX_inXknowsX_barrier_sack",
-            "allShortestPaths",
-            //
-            ProgramTest.Traversals.class.getCanonicalName(),
-            TraversalInterruptionTest.class.getCanonicalName(),
-            TraversalInterruptionComputerTest.class.getCanonicalName(),
-            EventStrategyProcessTest.class.getCanonicalName(),
-            ElementIdStrategyProcessTest.class.getCanonicalName()));
 
     private static final Set<Class> IMPLEMENTATION = new HashSet<Class>() {{
         add(TinkerEdge.class);
@@ -90,7 +90,6 @@ public class PythonProvider extends AbstractGraphProvider {
     @Override
     public Map<String, Object> getBaseConfiguration(final String graphName, final Class<?> test, final String testMethodName,
                                                     final LoadGraphWith.GraphData loadGraphWith) {
-
         final TinkerGraph.DefaultIdManager idManager = selectIdMakerFromGraphData(loadGraphWith);
         final String idMaker = (idManager.equals(TinkerGraph.DefaultIdManager.ANY) ? selectIdMakerFromGraphData(loadGraphWith) : idManager).name();
         return new HashMap<String, Object>() {{
@@ -98,7 +97,6 @@ public class PythonProvider extends AbstractGraphProvider {
             put(TinkerGraph.GREMLIN_TINKERGRAPH_VERTEX_ID_MANAGER, idMaker);
             put(TinkerGraph.GREMLIN_TINKERGRAPH_EDGE_ID_MANAGER, idMaker);
             put(TinkerGraph.GREMLIN_TINKERGRAPH_VERTEX_PROPERTY_ID_MANAGER, idMaker);
-            put("skipTest", SKIP_TESTS.contains(testMethodName) || SKIP_TESTS.contains(test.getCanonicalName()));
             if (loadGraphWith == LoadGraphWith.GraphData.CREW)
                 put(TinkerGraph.GREMLIN_TINKERGRAPH_DEFAULT_VERTEX_PROPERTY_CARDINALITY, VertexProperty.Cardinality.list.name());
         }};
@@ -150,8 +148,11 @@ public class PythonProvider extends AbstractGraphProvider {
                 throw new IllegalStateException(e.getMessage(), e);
             }
             final GraphTraversalSource g = graph.traversal();
-            return g.withStrategies(new TranslationStrategy(g, new PythonGraphSONJavaTranslator<>(PythonTranslator.of("g", IMPORT_STATICS), JavaTranslator.of(g))));
+            return g.withStrategies(new TranslationStrategy(g,
+                    new PythonGraphSONJavaTranslator<>(
+                            PythonTranslator.of("g", IMPORT_STATICS),
+                            JavaTranslator.of(g),
+                            TestHelper.RANDOM.nextBoolean() ? GraphSONVersion.V2_0 : GraphSONVersion.V3_0), true));
         }
     }
-
 }

@@ -180,8 +180,7 @@ Test cases for the Gremlin Language currently requires that the newly developed 
 
 1. As a test written in Java in the `gremlin-test` module within the subpackages of
 `org.apache.tinkerpop.gremlin.process.traversal.step`
-2. As a test written in Groovy in the `gremlin-groovy-test` module within the same subpackage structure as `gremlin-test`
-3. As a test written in Gherkin in the `gremlin-test` module in the `/features` subdirectory
+2. As a test written in Gherkin in the `gremlin-test` module in the `/features` subdirectory
 
 When writing a Java test case for a Gremlin step, be sure to use the following conventions.
 
@@ -198,14 +197,11 @@ When writing a Java test case for a Gremlin step, be sure to use the following c
 ** `checkResults(Arrays.asList("marko","josh"), traversal)`
 ** `checkMap(new HashMap<String,Long>() {{ put("marko",1l); }}, traversal.next())`
 
-Groovy tests are implemented by extending the Java test and implementing the abstract method that produces the
-traversal. Simply follow existing patterns in those tests - they are self-evident.
-
 Gherkin tests follow some important conventions and have a sub-language that must be adhered to for the tests to
 function properly. Note that Gherkin tests are designed to support the testing of GLVs and at some point will likely
-replace the Java tests (Groovy tests have already been removed in 3.3.x). If a new Java test is added and an associated
-Gherkin tests is not, the overall build will fail the `FeatureCoverageTest` of `gremlin-test` which validates that all
-tests written in Java are also implemented in Gherkin.
+replace the Java tests. If a new Java test is added and an associated Gherkin tests is not, the overall build will
+fail the `FeatureCoverageTest` of `gremlin-test` which validates that all tests written in Java are also implemented
+in Gherkin.
 
 The basic syntax of a Gherkin test is as follows:
 
@@ -517,8 +513,8 @@ When submitting a pull request to one of the <<branches, release branches>>, be 
 * If you are a TinkerPop committer, you can VOTE on your own pull request, so please do so.
 
 A pull request will typically be made to a target <<branches, branch>>. Assuming that branch is upstream of other
-release branches (e.g. a pull request made to for the branch containing 3.1.x must merge to the branch that releases
-3.2.x), it is important to be sure that those changes are merged to the downstream release branches. Typically,
+release branches (e.g. a pull request made to for the branch containing 3.2.x must merge to the branch that releases
+3.3.x), it is important to be sure that those changes are merged to the downstream release branches. Typically,
 this process is best handled by multiple pull requests: one to each release branch.
 
 While merges can be handled manually with `git` commands, it is typically best to use the GitHub UI itself and the
@@ -527,17 +523,17 @@ version first (e.g. if the fix is going to 3.2.x then the change should be merge
 `tp33`, `tp32`).
 
 As an example, consider a situation where there is a feature branch named "TINKERPOP-1234" that contains a fix for
-the `tp31` branch:
+the `tp32` branch:
 
 [source,bash]
 ----
-`git checkout -b TINKERPOP-1234 tp31`
+`git checkout -b TINKERPOP-1234 tp32`
 // do a bunch of stuff to implement TINKERPOP-1234 and commit/push
 git checkout -b <TINKERPOP-1234-master> master
 git merge TINKERPOP-1234
 ----
 
-At this point, there are two branches, with the same set of commits going to `tp31` and `master`. Voting will occur
+At this point, there are two branches, with the same set of commits going to `tp32` and `master`. Voting will occur
 on both pull requests. After a successful vote, it is time to merge. If there are no conflicts, then simply `git merge`
 both pull requests to their respective branches. If there are conflicts, then there is some added work to do - time to
 rebase:
@@ -545,7 +541,7 @@ rebase:
 [source,bash]
 ----
 git checkout TINKERPOP-1234
-git rebase origin/tp31
+git rebase origin/tp32
 ----
 
 Depending on the conflict, it might be a good idea to re-test before going any further, otherwise:
@@ -667,6 +663,20 @@ uploaded to the server and should preserve the directory structure in git as ref
 Please see the <<building-testing,Building and Testing>> section for more information on how to generate the
 documentation.
 
+[[site]]
+== Site
+
+The content for the TinkerPop home page and related pages that make up the web site at link://tinkerpop.apache.org[tinkerpop.apache.org]
+is stored in the git repository under `/docs/site`. In this way, it becomes easier for the community to provide content
+presented there, because the content can be accepted via the standard workflow of a pull request. To generate the site
+for local viewing, run `bin/generate-home.sh`, which will build the site in `target/site/`. PMC members can officially
+publish the site with `bin/publish-home.sh <username>`.
+
+"Publishing" does not publish documentation (e.g. reference docs, javadocs, etc) and only publishes what is generated
+from the content in `/docs/site`. Publishing the site can be performed out of band with the release cycle and is no
+way tied to a version. The `master` branch should always be considered the "current" web site and publishing should
+only happen from that branch.
+
 [[logging]]
 == Logging
 
@@ -676,3 +686,79 @@ resources.  That file gets copied to the `target/test-classes` on build and sure
 are then configured to point at that area of the file system for those configuration files. The properties files
 can be edited to fine tune control of the log output, but generally speaking the current configuration is likely
 best for everyone's general purposes, so if changes are made please revert them prior to commit.
+
+[[io]]
+== IO Documentation and Testing
+
+The link:http://tinkerpop.apache.org/docs/x.y.z/dev/io[IO Documentation] provides more details into GraphML, GraphSON
+and Gryo with a special focus on the needs of developers who are working directly with these formats. GraphSON gets
+the greatest focus here as it is used as the primary IO format for link:http://tinkerpop.apache.org/docs/x.y.z/reference/#gremlin-variants[GLVs].
+This documentation is largely generated from the `gremlin-io-test` module found under `gremlin-tools`. The
+`gremlin-io-test` module also includes a testing framework which validates that formats don't break between TinkerPop
+versions. Unfortunately, this module requires some maintenance to ensure that the documentation and tests both stay
+updated.
+
+The `gremlin-io-test` module contains a set of files in the test resources that are statically bound to the version in
+which they were generated. Older versions should never be modified. The only time changes to these resources should be
+accepted should be for the current `SNAPSHOT` version. The test resources are generated from the `Model` class which
+contains the objects that will undergo serialization for purpose of testing. Note that these same objects in the
+`Model` are also used to generate documentation.
+
+To generate these test resources and documentation snippets based on the `Model`, use this Maven command:
+
+[source,text]
+----
+mvn clean install -pl :gremlin-io-test -Dio
+----
+
+This command will generate two directories in the `/target` output directory of `gremlin-io-test`: `test-case-data`
+and `dev-docs`. The contents of `test-case-data` represents the serialized `Model` objects that can be copied to the
+test resources and the contents of the `dev-docs` contains asciidoc snippets that can be copied to the IO documentation.
+
+Generating data files in the fashion mentioned above with Maven is only good for versions of TinkerPop on the 3.3.x
+line because the `gremlin-io-test` module did not exist in 3.2.x. Of course, compatibility is still tested back to
+those older versions. To generate test data from 3.2.x, there are Groovy scripts in the comments of the
+`gryo.asciidoc` and `graphson.asciidoc` files that can copy/pasted to the Gremlin Console. They will generate the
+batch of test files needed for `gremlin-io-test`.
+
+When does this command need to be executed?
+
+1. If a new object is added to the `Model` - in this case, the newly created data files should be copied to the
+appropriate test resource directory for the current `SNAPSHOT` version and the appropriate asciidoc snippet added to
+the IO asciidocs.
+2. After the release of a new TinkerPop version - in this case, a new test resource directory should be created for
+the `SNAPSHOT` version and the generated `test-case-data` copied in appropriately.
+
+The second case, does require some additional discussion. When a new version is added the following classes will need
+to be updated in the following ways:
+
+*GryoCompatibility* - Include new Gryo 1.0 and 3.0 enums for the current `SNAPSHOT`.
+
+[source,java]
+----
+V1D0_3_3_x("3.3.x", "1.0", "v1d0"),
+V3D0_3_3_x("3.3.x", "3.0", "v3d0")
+----
+
+*GraphSONCompatibility* - Include new GraphSON enums for each of the various GraphSON configurations and versions.
+
+[source,java]
+----
+V1D0_3_3_x("3.3.x", "1.0", "v1d0"),
+V2D0_PARTIAL_3_3_x("3.3.x", "2.0", "v2d0-partial"),
+V2D0_NO_TYPE_3_3_x("3.3.x", "2.0", "v2d0-no-types"),
+V3D0_PARTIAL_3_3_x("3.3.x", "3.0", "v3d0");
+----
+
+*GryoCompatibilityTest* - Add the newly included `GryoCompatibility` enums to the test parameters being careful to
+match the appropriate "mapper" to the right version.
+
+*GraphSONUntypedCompatibilityTest* - Add the newly included GraphSON 1.0 and 2.0 "untyped" enums to the test parameters
+being careful to match the appropriate "mapper" to the right version.
+
+*GraphSONTypedCompatibilityTest* - Add the newly included GraphSON 3.0 and 2.0 "typed" enums to the test parameters
+being careful to match the appropriate "mapper" to the right version.
+
+At this point, all of the IO tests are rigged up properly and assuming the test resources are available a standard
+`mvn clean install` should execute the compatibility tests and validate that everything is working as expected and
+that there are no breaks in serialization processes.

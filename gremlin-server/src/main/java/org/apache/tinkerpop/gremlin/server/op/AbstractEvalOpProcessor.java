@@ -18,20 +18,18 @@
  */
 package org.apache.tinkerpop.gremlin.server.op;
 
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import org.apache.tinkerpop.gremlin.driver.Tokens;
 import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
 import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
 import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
 import org.apache.tinkerpop.gremlin.groovy.engine.GremlinExecutor;
-import org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.TimedInterruptTimeoutException;
+import org.apache.tinkerpop.gremlin.groovy.jsr223.TimedInterruptTimeoutException;
 import org.apache.tinkerpop.gremlin.process.traversal.Operator;
 import org.apache.tinkerpop.gremlin.process.traversal.Order;
 import org.apache.tinkerpop.gremlin.process.traversal.Pop;
 import org.apache.tinkerpop.gremlin.process.traversal.Scope;
 import org.apache.tinkerpop.gremlin.server.OpProcessor;
-import org.apache.tinkerpop.gremlin.server.handler.GremlinResponseFrameEncoder;
 import org.apache.tinkerpop.gremlin.structure.Column;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.server.Context;
@@ -69,6 +67,7 @@ import static com.codahale.metrics.MetricRegistry.name;
  */
 public abstract class AbstractEvalOpProcessor extends AbstractOpProcessor {
     private static final Logger logger = LoggerFactory.getLogger(AbstractEvalOpProcessor.class);
+    private static final Logger auditLogger = LoggerFactory.getLogger(GremlinServer.AUDIT_LOGGER_NAME);
     public static final Timer evalOpTimer = MetricManager.INSTANCE.getTimer(name(GremlinServer.class, "op", "eval"));
 
     /**
@@ -82,26 +81,6 @@ public abstract class AbstractEvalOpProcessor extends AbstractOpProcessor {
     public static final int DEFAULT_MAX_PARAMETERS = 16;
 
     protected int maxParameters = DEFAULT_MAX_PARAMETERS;
-
-    /**
-     * Captures the "error" count as a reportable metric for Gremlin Server.
-     *
-     * @deprecated As of release 3.1.1-incubating, not replaced. Direct usage is discouraged with sub-classes as
-     * error counts are captured more globally for error messages written down the pipeline to
-     * {@link GremlinResponseFrameEncoder}.
-     */
-    @Deprecated
-    static final Meter errorMeter = MetricManager.INSTANCE.getMeter(name(GremlinServer.class, "errors"));
-
-    /**
-     * Regex for validating that binding variables.
-     *
-     * @deprecated As of release 3.1.2-incubating, not replaced. This {@code Pattern} is not used internally.
-     * Deprecated rather than just removing as it's possible that someone else might be using it when developing
-     * custom {@link OpProcessor} implementations.
-     */
-    @Deprecated
-    protected static final Pattern validBindingName = Pattern.compile("[a-zA-Z$_][a-zA-Z0-9$_]*");
 
     /**
      * This may or may not be the full set of invalid binding keys.  It is dependent on the static imports made to
@@ -289,6 +268,11 @@ public abstract class AbstractEvalOpProcessor extends AbstractOpProcessor {
                     final Iterator itty = IteratorUtils.asIterator(o);
 
                     logger.debug("Preparing to iterate results from - {} - in thread [{}]", msg, Thread.currentThread().getName());
+                    if (settings.authentication.enableAuditLog) {
+                        String address = context.getChannelHandlerContext().channel().remoteAddress().toString();
+                        if (address.startsWith("/") && address.length() > 1) address = address.substring(1);
+                        auditLogger.info("User with address {} requested: {}", address, script);
+                    }
 
                     try {
                         handleIterator(rhc, itty);
@@ -310,13 +294,6 @@ public abstract class AbstractEvalOpProcessor extends AbstractOpProcessor {
                 if (t instanceof OpProcessorException) {
                     rhc.writeAndFlush(((OpProcessorException) t).getResponseMessage());
                 } else if (t instanceof TimedInterruptTimeoutException) {
-                    // occurs when the TimedInterruptCustomizerProvider is in play
-                    final String errorMessage = String.format("A timeout occurred within the script during evaluation of [%s] - consider increasing the limit given to TimedInterruptCustomizerProvider", msg);
-                    logger.warn(errorMessage);
-                    rhc.writeAndFlush(ResponseMessage.build(msg).code(ResponseStatusCode.SERVER_ERROR_TIMEOUT)
-                            .statusMessage("Timeout during script evaluation triggered by TimedInterruptCustomizerProvider")
-                            .statusAttributeException(t).create());
-                } else if (t instanceof org.apache.tinkerpop.gremlin.groovy.jsr223.TimedInterruptTimeoutException) {
                     // occurs when the TimedInterruptCustomizerProvider is in play
                     final String errorMessage = String.format("A timeout occurred within the script during evaluation of [%s] - consider increasing the limit given to TimedInterruptCustomizerProvider", msg);
                     logger.warn(errorMessage);

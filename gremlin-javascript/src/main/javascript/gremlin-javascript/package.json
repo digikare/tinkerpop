@@ -1,6 +1,6 @@
 {
   "name": "@dgk/gremlin",
-  "version": "3.2.11",
+  "version": "3.3.5-dgk1",
   "description": "JavaScript Gremlin Language Variant",
   "author": "Apache TinkerPop team",
   "keywords": [
@@ -14,12 +14,16 @@
   ],
   "license": "Apache-2.0",
   "dependencies": {
+    "debug": "^4.1.0",
     "ws": "^6.1.2"
   },
   "devDependencies": {
     "mocha": "~4.0.1",
     "cucumber": "~3.1.0",
-    "chai": "~4.1.2"
+    "chai": "~4.1.2",
+    "grunt": "~1.0.2",
+    "grunt-cli": "~1.2.0",
+    "grunt-jsdoc": "~2.3.0"
   },
   "repository": {
     "type": "git",

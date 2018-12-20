@@ -24,11 +24,14 @@ import org.apache.tinkerpop.gremlin.process.computer.GraphFilter;
 import org.apache.tinkerpop.gremlin.process.computer.Memory;
 import org.apache.tinkerpop.gremlin.process.computer.traversal.MemoryTraversalSideEffects;
 import org.apache.tinkerpop.gremlin.process.computer.traversal.TraversalVertexProgram;
+import org.apache.tinkerpop.gremlin.process.computer.traversal.strategy.decoration.VertexProgramStrategy;
+import org.apache.tinkerpop.gremlin.process.computer.traversal.strategy.finalization.ComputerFinalizationStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalParent;
 import org.apache.tinkerpop.gremlin.process.traversal.traverser.TraverserRequirement;
+import org.apache.tinkerpop.gremlin.process.traversal.util.DefaultTraversalStrategies;
 import org.apache.tinkerpop.gremlin.process.traversal.util.PureTraversal;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
@@ -85,14 +88,6 @@ public final class TraversalVertexProgramStep extends VertexProgramStep implemen
         if (memory.exists(TraversalVertexProgram.HALTED_TRAVERSERS))
             builder.haltedTraversers(memory.get(TraversalVertexProgram.HALTED_TRAVERSERS));
         return builder.create(graph);
-    }
-
-    @Override
-    public GraphComputer generateComputer(final Graph graph) {
-        final GraphComputer graphComputer = this.computer.apply(graph);
-        if (!this.isEndStep())
-            graphComputer.persist(GraphComputer.Persist.EDGES).result(GraphComputer.ResultGraph.NEW);
-        return graphComputer;
     }
 
     @Override

@@ -21,7 +21,8 @@ try:
 except ImportError:
     import json
 
-from gremlin_python.structure.io import graphson
+from gremlin_python.structure.io import graphsonV2d0
+from gremlin_python.structure.io import graphsonV3d0
 
 __author__ = 'David M. Brown (davebshow@gmail.com)'
 
@@ -80,17 +81,34 @@ class Traversal(Processor):
         return args
 
 
-class GraphSONMessageSerializer:
-    """Message serializer for GraphSON"""
+class GraphSONMessageSerializer(object):
+    """
+    Message serializer for GraphSON. Allow users to pass custom reader,
+    writer, and version kwargs for custom serialization. Otherwise,
+    use current GraphSON version as default.
+    """
 
-    def __init__(self, reader=None, writer=None):
+    # KEEP TRACK OF CURRENT DEFAULTS
+    DEFAULT_READER_CLASS = graphsonV3d0.GraphSONReader
+    DEFAULT_WRITER_CLASS = graphsonV3d0.GraphSONWriter
+    DEFAULT_VERSION = b"application/vnd.gremlin-v3.0+json"
+
+    def __init__(self, reader=None, writer=None, version=None):
+        if not version:
+            version = self.DEFAULT_VERSION
+        self._version = version
         if not reader:
-            reader = graphson.GraphSONReader()
+            reader = self.DEFAULT_READER_CLASS()
         self._graphson_reader = reader
         if not writer:
-            writer = graphson.GraphSONWriter()
+            writer = self.DEFAULT_WRITER_CLASS()
         self.standard = Standard(writer)
         self.traversal = Traversal(writer)
+
+    @property
+    def version(self):
+        """Read only property"""
+        return self._version
 
     def get_processor(self, processor):
         processor = getattr(self, processor, None)
@@ -117,8 +135,7 @@ class GraphSONMessageSerializer:
             'op': op,
             'args': args
         }
-        return self.finalize_message(message, b"\x21",
-                                     b"application/vnd.gremlin-v2.0+json")
+        return self.finalize_message(message, b"\x21", self.version)
 
     def finalize_message(self, message, mime_len, mime_type):
         message = json.dumps(message)
@@ -127,3 +144,21 @@ class GraphSONMessageSerializer:
 
     def deserialize_message(self, message):
         return self._graphson_reader.toObject(message)
+
+
+class GraphSONSerializersV2d0(GraphSONMessageSerializer):
+    """Message serializer for GraphSON 2.0"""
+    def __init__(self):
+        reader = graphsonV2d0.GraphSONReader()
+        writer = graphsonV2d0.GraphSONWriter()
+        version = b"application/vnd.gremlin-v2.0+json"
+        super(GraphSONSerializersV2d0, self).__init__(reader, writer, version)
+
+
+class GraphSONSerializersV3d0(GraphSONMessageSerializer):
+    """Message serializer for GraphSON 3.0"""
+    def __init__(self):
+        reader = graphsonV3d0.GraphSONReader()
+        writer = graphsonV3d0.GraphSONWriter()
+        version = b"application/vnd.gremlin-v3.0+json"
+        super(GraphSONSerializersV3d0, self).__init__(reader, writer, version)

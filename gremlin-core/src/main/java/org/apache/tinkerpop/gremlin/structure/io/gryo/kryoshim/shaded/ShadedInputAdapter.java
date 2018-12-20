@@ -34,8 +34,12 @@ public class ShadedInputAdapter implements InputShim {
     }
 
     @Override
-    public byte readByte()
-    {
+    public short readShort() {
+        return shadedInput.readShort();
+    }
+
+    @Override
+    public byte readByte() {
         return shadedInput.readByte();
     }
 
@@ -60,12 +64,12 @@ public class ShadedInputAdapter implements InputShim {
     }
 
     @Override
-    public short readShort() {
-        return shadedInput.readShort();
+    public double readDouble() {
+        return shadedInput.readDouble();
     }
 
     @Override
-    public double readDouble() {
-        return shadedInput.readDouble();
+    public boolean readBoolean() {
+        return shadedInput.readBoolean();
     }
 }

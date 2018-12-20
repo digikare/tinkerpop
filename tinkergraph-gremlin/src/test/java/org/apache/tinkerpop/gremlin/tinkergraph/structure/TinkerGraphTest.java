@@ -33,13 +33,14 @@ import org.apache.tinkerpop.gremlin.structure.io.Io;
 import org.apache.tinkerpop.gremlin.structure.io.GraphReader;
 import org.apache.tinkerpop.gremlin.structure.io.GraphWriter;
 import org.apache.tinkerpop.gremlin.structure.io.IoCore;
-import org.apache.tinkerpop.gremlin.structure.io.IoRegistry;
 import org.apache.tinkerpop.gremlin.structure.io.IoTest;
 import org.apache.tinkerpop.gremlin.structure.io.Mapper;
 import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONReader;
 import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONWriter;
-import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoClassResolver;
+import org.apache.tinkerpop.gremlin.structure.io.graphson.TypeInfo;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoClassResolverV1d0;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoMapper;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoVersion;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoWriter;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.apache.tinkerpop.shaded.jackson.databind.ObjectMapper;
@@ -354,7 +355,7 @@ public class TinkerGraphTest {
     @Test
     public void shouldSerializeTinkerGraphToGraphSONWithTypes() throws Exception {
         final TinkerGraph graph = TinkerFactory.createModern();
-        final Mapper<ObjectMapper> mapper = graph.io(IoCore.graphson()).mapper().embedTypes(true).create();
+        final Mapper<ObjectMapper> mapper = graph.io(IoCore.graphson()).mapper().typeInfo(TypeInfo.PARTIAL_TYPES).create();
         try (final ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             final GraphWriter writer = GraphSONWriter.build().mapper(mapper).create();
             writer.writeObject(out, graph);
@@ -520,7 +521,6 @@ public class TinkerGraphTest {
 
         //Test write graph
         graph.close();
-        assertEquals(TestIoBuilder.calledRegistry, 0);
         assertEquals(TestIoBuilder.calledOnMapper, 1);
         assertEquals(TestIoBuilder.calledGraph, 1);
         assertEquals(TestIoBuilder.calledCreate, 1);
@@ -533,7 +533,6 @@ public class TinkerGraphTest {
 
         //Test read graph
         final TinkerGraph readGraph = TinkerGraph.open(conf);
-        assertEquals(TestIoBuilder.calledRegistry, 0);
         assertEquals(TestIoBuilder.calledOnMapper, 1);
         assertEquals(TestIoBuilder.calledGraph, 1);
         assertEquals(TestIoBuilder.calledCreate, 1);
@@ -548,7 +547,7 @@ public class TinkerGraphTest {
         final ArrayList<Color> colorList = new ArrayList<>(Arrays.asList(Color.RED, Color.GREEN));
 
         final Supplier<ClassResolver> classResolver = new CustomClassResolverSupplier();
-        final GryoMapper mapper = GryoMapper.build().addRegistry(TinkerIoRegistryV1d0.instance()).classResolver(classResolver).create();
+        final GryoMapper mapper = GryoMapper.build().version(GryoVersion.V3_0).addRegistry(TinkerIoRegistryV3d0.instance()).classResolver(classResolver).create();
         final Kryo kryo = mapper.createMapper();
         try (final ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             final Output out = new Output(stream);
@@ -576,7 +575,7 @@ public class TinkerGraphTest {
         final ArrayList<Color> colorList = new ArrayList<>(Arrays.asList(Color.RED, Color.GREEN));
 
         final Supplier<ClassResolver> classResolver = new CustomClassResolverSupplier();
-        final GryoMapper mapper = GryoMapper.build().addRegistry(TinkerIoRegistryV1d0.instance()).classResolver(classResolver).create();
+        final GryoMapper mapper = GryoMapper.build().version(GryoVersion.V3_0).addRegistry(TinkerIoRegistryV3d0.instance()).classResolver(classResolver).create();
         final Kryo kryo = mapper.createMapper();
         try (final ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             final Output out = new Output(stream);
@@ -689,7 +688,7 @@ public class TinkerGraphTest {
         }
     }
 
-    public static class CustomClassResolver extends GryoClassResolver {
+    public static class CustomClassResolver extends GryoClassResolverV1d0 {
         private ColorToTinkerGraphSerializer colorToGraphSerializer = new ColorToTinkerGraphSerializer();
 
         public Registration getRegistration(final Class clazz) {
@@ -704,20 +703,13 @@ public class TinkerGraphTest {
 
     public static class TestIoBuilder implements Io.Builder {
 
-        static int calledRegistry, calledGraph, calledCreate, calledOnMapper;
+        static int calledGraph, calledCreate, calledOnMapper;
 
         public TestIoBuilder(){
             //Looks awkward to reset static vars inside a constructor, but makes sense from testing perspective
-            calledRegistry = 0;
             calledGraph = 0;
             calledCreate = 0;
             calledOnMapper = 0;
-        }
-
-        @Override
-        public Io.Builder<? extends Io> registry(final IoRegistry registry) {
-            calledRegistry++;
-            return this;
         }
 
         @Override
@@ -736,6 +728,11 @@ public class TinkerGraphTest {
         public Io create() {
             calledCreate++;
             return mock(Io.class);
+        }
+
+        @Override
+        public boolean requiresVersion(final Object version) {
+            return false;
         }
     }
 }

@@ -26,7 +26,6 @@ import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.SackFunctions;
 import org.apache.tinkerpop.gremlin.process.traversal.Translator;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
-import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.TraversalStrategyProxy;
@@ -56,8 +55,6 @@ import java.util.UUID;
  * @author Stephen Mallette (http://stephen.genoprime.com)
  */
 public final class GroovyTranslator implements Translator.ScriptTranslator {
-
-    private static final boolean IS_TESTING = Boolean.valueOf(System.getProperty("is.testing", "false"));
 
     private final String traversalSource;
     private final TypeTranslator typeTranslator;
@@ -103,10 +100,6 @@ public final class GroovyTranslator implements Translator.ScriptTranslator {
         final StringBuilder traversalScript = new StringBuilder(start);
         for (final Bytecode.Instruction instruction : bytecode.getInstructions()) {
             final String methodName = instruction.getOperator();
-            if (IS_TESTING &&
-                    instruction.getOperator().equals(TraversalSource.Symbols.withStrategies) &&
-                    instruction.getArguments()[0].toString().contains("TranslationStrategy"))
-                continue;
             if (0 == instruction.getArguments().length)
                 traversalScript.append(".").append(methodName).append("()");
             else {

@@ -20,7 +20,7 @@ limitations under the License.
     <parent>
         <groupId>org.apache.tinkerpop</groupId>
         <artifactId>tinkerpop</artifactId>
-        <version>3.2.10</version>
+        <version>3.3.5-SNAPSHOT</version>
     </parent>
     <artifactId>gremlin-shaded</artifactId>
     <name>Apache TinkerPop :: Gremlin Shaded</name>
@@ -50,7 +50,7 @@ limitations under the License.
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <!-- Update the shade plugin config whenever you change this version; update what exactly? -->
-            <version>2.9.6</version>
+            <version>2.9.7</version>
             <optional>true</optional>
         </dependency>
     </dependencies>

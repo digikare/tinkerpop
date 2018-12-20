@@ -26,6 +26,7 @@ const assert = require('assert');
 const expect = require('chai').expect;
 const graph = require('../../lib/structure/graph');
 const t = require('../../lib/process/traversal');
+const Bytecode = require('../../lib/process/bytecode');
 const TraversalStrategies = require('../../lib/process/traversal-strategy').TraversalStrategies;
 
 describe('Traversal', function () {
@@ -44,7 +45,7 @@ describe('Traversal', function () {
 
     it('should add steps with an enum value', function () {
       const g = new graph.Graph().traversal();
-      const bytecode = g.V().order().by('age', t.order.decr).getBytecode();
+      const bytecode = g.V().order().by('age', t.order.desc).getBytecode();
       assert.ok(bytecode);
       assert.strictEqual(bytecode.sourceInstructions.length, 0);
       assert.strictEqual(bytecode.stepInstructions.length, 3);
@@ -54,7 +55,7 @@ describe('Traversal', function () {
       assert.strictEqual(bytecode.stepInstructions[2][1], 'age');
       assert.strictEqual(typeof bytecode.stepInstructions[2][2], 'object');
       assert.strictEqual(bytecode.stepInstructions[2][2].typeName, 'Order');
-      assert.strictEqual(bytecode.stepInstructions[2][2].elementName, 'decr');
+      assert.strictEqual(bytecode.stepInstructions[2][2].elementName, 'desc');
     });
   });
 
@@ -185,7 +186,7 @@ describe('Traversal', function () {
       };
       const strategies = new TraversalStrategies();
       strategies.addStrategy(strategyMock);
-      const traversal = new t.Traversal(null, strategies, null);
+      const traversal = new t.Traversal(null, strategies, new Bytecode());
       return traversal.iterate().then(() => {
         assert.strictEqual(applied, true);
       });

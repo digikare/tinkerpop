@@ -18,12 +18,10 @@
  */
 package org.apache.tinkerpop.gremlin.server.channel;
 
-import io.netty.channel.EventLoopGroup;
 import org.apache.tinkerpop.gremlin.server.AbstractChannelizer;
 import org.apache.tinkerpop.gremlin.server.Channelizer;
 import org.apache.tinkerpop.gremlin.server.Settings;
 import org.apache.tinkerpop.gremlin.server.auth.AllowAllAuthenticator;
-import org.apache.tinkerpop.gremlin.server.auth.Authenticator;
 import org.apache.tinkerpop.gremlin.server.handler.AbstractAuthenticationHandler;
 import org.apache.tinkerpop.gremlin.server.handler.HttpBasicAuthenticationHandler;
 import org.apache.tinkerpop.gremlin.server.handler.HttpGremlinEndpointHandler;
@@ -37,7 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Constructs a {@link Channelizer} that exposes an HTTP/REST endpoint in Gremlin Server.
+ * Constructs a {@link Channelizer} that exposes an HTTP endpoint in Gremlin Server.
  *
  * @author Stephen Mallette (http://stephen.genoprime.com)
  */
@@ -48,7 +46,7 @@ public class HttpChannelizer extends AbstractChannelizer {
     private AbstractAuthenticationHandler authenticationHandler;
 
     @Override
-    public void init(final ServerGremlinExecutor<EventLoopGroup> serverGremlinExecutor) {
+    public void init(final ServerGremlinExecutor serverGremlinExecutor) {
         super.init(serverGremlinExecutor);
         httpGremlinEndpointHandler = new HttpGremlinEndpointHandler(serializers, gremlinExecutor, graphManager, settings);
     }
@@ -83,7 +81,7 @@ public class HttpChannelizer extends AbstractChannelizer {
         final String authHandlerClass = authSettings.authenticationHandler;
         if (authHandlerClass == null) {
             //Keep things backwards compatible
-            return new HttpBasicAuthenticationHandler(authenticator);
+            return new HttpBasicAuthenticationHandler(authenticator, authSettings);
         } else {
             return createAuthenticationHandler(authSettings);
         }
@@ -92,7 +90,6 @@ public class HttpChannelizer extends AbstractChannelizer {
     @Override
     public void finalize(final ChannelPipeline pipeline) {
         pipeline.remove(PIPELINE_OP_SELECTOR);
-        pipeline.remove(PIPELINE_RESULT_ITERATOR_HANDLER);
         pipeline.remove(PIPELINE_OP_EXECUTOR);
     }
 }

@@ -42,6 +42,7 @@ import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV1d0;
 import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV2d0;
 import org.apache.tinkerpop.gremlin.driver.ser.GryoLiteMessageSerializerV1d0;
 import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0;
+import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV3d0;
 import org.apache.tinkerpop.gremlin.driver.ser.JsonBuilderGryoSerializer;
 import org.apache.tinkerpop.gremlin.driver.ser.MessageTextSerializer;
 import org.apache.tinkerpop.gremlin.driver.ser.SerTokens;
@@ -52,6 +53,7 @@ import org.apache.tinkerpop.gremlin.jsr223.DefaultImportCustomizer;
 import org.apache.tinkerpop.gremlin.jsr223.ImportCustomizer;
 import org.apache.tinkerpop.gremlin.jsr223.console.ConsoleCustomizer;
 import org.apache.tinkerpop.gremlin.jsr223.console.GremlinShellEnvironment;
+import org.apache.tinkerpop.gremlin.jsr223.console.RemoteAcceptor;
 
 /**
  * @author Stephen Mallette (http://stephen.genoprime.com)
@@ -82,6 +84,7 @@ public class DriverGremlinPlugin extends AbstractGremlinPlugin {
                     GraphSONMessageSerializerV2d0.class,
                     GryoLiteMessageSerializerV1d0.class,
                     GryoMessageSerializerV1d0.class,
+                    GryoMessageSerializerV3d0.class,
                     JsonBuilderGryoSerializer.class,
                     MessageTextSerializer.class,
                     SerializationException.class,
@@ -97,7 +100,7 @@ public class DriverGremlinPlugin extends AbstractGremlinPlugin {
 
     private static class DriverConsoleCustomizer implements ConsoleCustomizer {
         @Override
-        public org.apache.tinkerpop.gremlin.jsr223.console.RemoteAcceptor getRemoteAcceptor(final GremlinShellEnvironment environment) {
+        public RemoteAcceptor getRemoteAcceptor(final GremlinShellEnvironment environment) {
             return new DriverRemoteAcceptor(environment);
         }
     }

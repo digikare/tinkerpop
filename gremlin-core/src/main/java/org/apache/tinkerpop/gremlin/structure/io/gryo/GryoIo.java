@@ -39,14 +39,14 @@ import java.util.function.Consumer;
  */
 public final class GryoIo implements Io<GryoReader.Builder, GryoWriter.Builder, GryoMapper.Builder> {
 
-    private final IoRegistry registry;
     private final Graph graph;
     private Optional<Consumer<Mapper.Builder>> onMapper;
+    private final GryoVersion version;
 
     private GryoIo(final Builder builder) {
-        this.registry = builder.registry;
         this.graph = builder.graph;
         this.onMapper = Optional.ofNullable(builder.onMapper);
+        this.version = builder.version;
     }
 
     /**
@@ -56,6 +56,7 @@ public final class GryoIo implements Io<GryoReader.Builder, GryoWriter.Builder, 
     public GryoReader.Builder reader() {
         return GryoReader.build().mapper(mapper().create());
     }
+
     /**
      * {@inheritDoc}
      */
@@ -69,7 +70,7 @@ public final class GryoIo implements Io<GryoReader.Builder, GryoWriter.Builder, 
      */
     @Override
     public GryoMapper.Builder mapper() {
-        final GryoMapper.Builder builder = (null == this.registry) ? GryoMapper.build() : GryoMapper.build().addRegistry(this.registry);
+        final GryoMapper.Builder builder = GryoMapper.build().version(version);
         onMapper.ifPresent(c -> c.accept(builder));
         return builder;
     }
@@ -94,24 +95,27 @@ public final class GryoIo implements Io<GryoReader.Builder, GryoWriter.Builder, 
         }
     }
 
+    /**
+     * Create a new builder using the default version of Gryo - v3.
+     */
     public static Io.Builder<GryoIo> build() {
-        return new Builder();
+        return build(GryoVersion.V3_0);
+    }
+
+    /**
+     * Create a new builder using the specified version of Gryo.
+     */
+    public static Io.Builder<GryoIo> build(final GryoVersion version) {
+        return new Builder(version);
     }
 
     public final static class Builder implements Io.Builder<GryoIo> {
-
-        private IoRegistry registry = null;
         private Graph graph;
         private Consumer<Mapper.Builder> onMapper = null;
+        private final GryoVersion version;
 
-        /**
-         * @deprecated As of release 3.2.2, replaced by {@link #onMapper(Consumer)}.
-         */
-        @Deprecated
-        @Override
-        public Io.Builder<GryoIo> registry(final IoRegistry registry) {
-            this.registry = registry;
-            return this;
+        Builder(final GryoVersion version) {
+            this.version = version;
         }
 
         @Override
@@ -124,6 +128,11 @@ public final class GryoIo implements Io<GryoReader.Builder, GryoWriter.Builder, 
         public Io.Builder<GryoIo> graph(final Graph g) {
             this.graph = g;
             return this;
+        }
+
+        @Override
+        public <V> boolean requiresVersion(final V version) {
+            return this.version == version;
         }
 
         @Override

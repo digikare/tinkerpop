@@ -43,6 +43,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent
 import org.apache.tinkerpop.gremlin.process.traversal.step.branch.BranchStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.branch.ChooseStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.branch.LocalStep;
+import org.apache.tinkerpop.gremlin.process.traversal.step.branch.OptionalStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.branch.RepeatStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.branch.UnionStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.filter.AndStep;
@@ -63,6 +64,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.filter.TimeLimitStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.filter.TraversalFilterStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.filter.WherePredicateStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.filter.WhereTraversalStep;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.AddEdgeStartStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.AddEdgeStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.AddVertexStartStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.AddVertexStep;
@@ -77,7 +79,6 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.map.FoldStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroupCountStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroupStep;
-import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroupStepV3d0;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.IdStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.LabelStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.LambdaCollectingBarrierStep;
@@ -85,6 +86,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.map.LambdaFlatMapStep
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.LambdaMapStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.LoopsStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MatchStep;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.MathStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MaxGlobalStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MaxLocalStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MeanGlobalStep;
@@ -110,6 +112,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.map.SumLocalStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.TailLocalStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.TraversalFlatMapStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.TraversalMapStep;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.TraversalSelectStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.TreeStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.UnfoldStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.VertexStep;
@@ -117,7 +120,6 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.AddPropert
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.AggregateStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.GroupCountSideEffectStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.GroupSideEffectStep;
-import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.GroupSideEffectStepV3d0;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.IdentityStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.InjectStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.LambdaSideEffectStep;
@@ -567,27 +569,9 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#valuemap-step" target="_blank">Reference Documentation - ValueMap Step</a>
      * @since 3.0.0-incubating
      */
-    public default <E2> GraphTraversal<S, Map<String, E2>> valueMap(final boolean includeTokens, final String... propertyKeys) {
+    public default <E2> GraphTraversal<S, Map<Object, E2>> valueMap(final boolean includeTokens, final String... propertyKeys) {
         this.asAdmin().getBytecode().addStep(Symbols.valueMap, includeTokens, propertyKeys);
         return this.asAdmin().addStep(new PropertyMapStep<>(this.asAdmin(), includeTokens, PropertyType.VALUE, propertyKeys));
-    }
-
-    /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.0, replaced by {@link GraphTraversal#select(Column)}
-     */
-    @Deprecated
-    public default <E2> GraphTraversal<S, E2> mapValues() {
-        return this.select(Column.values).unfold();
-    }
-
-    /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.0, replaced by {@link GraphTraversal#select(Column)}
-     */
-    @Deprecated
-    public default <E2> GraphTraversal<S, E2> mapKeys() {
-        return this.select(Column.keys).unfold();
     }
 
     /**
@@ -719,7 +703,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
         selectKeys[1] = selectKey2;
         System.arraycopy(otherSelectKeys, 0, selectKeys, 2, otherSelectKeys.length);
         this.asAdmin().getBytecode().addStep(Symbols.select, selectKey1, selectKey2, otherSelectKeys);
-        return this.asAdmin().addStep(new SelectStep<>(this.asAdmin(), null, selectKeys));
+        return this.asAdmin().addStep(new SelectStep<>(this.asAdmin(), Pop.last, selectKeys));
     }
 
     /**
@@ -748,7 +732,36 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default <E2> GraphTraversal<S, E2> select(final String selectKey) {
         this.asAdmin().getBytecode().addStep(Symbols.select, selectKey);
-        return this.asAdmin().addStep(new SelectOneStep<>(this.asAdmin(), null, selectKey));
+        return this.asAdmin().addStep(new SelectOneStep<>(this.asAdmin(), Pop.last, selectKey));
+    }
+
+    /**
+     * Map the {@link Traverser} to the object specified by the key returned by the {@code keyTraversal} and apply the {@link Pop} operation
+     * to it.
+     *
+     * @param keyTraversal the traversal expression that selects the key to project
+     * @return the traversal with an appended {@link SelectStep}.
+     * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#select-step" target="_blank">Reference Documentation - Select Step</a>
+     * @since 3.3.3
+     */
+    public default <E2> GraphTraversal<S, E2> select(final Pop pop, final Traversal<S, E2> keyTraversal) {
+        this.asAdmin().getBytecode().addStep(Symbols.select, pop, keyTraversal);
+        return this.asAdmin().addStep(new TraversalSelectStep<>(this.asAdmin(), pop, keyTraversal));
+    }
+
+    /**
+     * Map the {@link Traverser} to the object specified by the key returned by the {@code keyTraversal}. Note that unlike other uses of
+     * {@code select} where there are multiple keys, this use of {@code select} with a traversal does not produce a
+     * {@code Map}.
+     *
+     * @param keyTraversal the traversal expression that selects the key to project
+     * @return the traversal with an appended {@link TraversalSelectStep}.
+     * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#select-step" target="_blank">Reference Documentation - Select Step</a>
+     * @since 3.3.3
+     */
+    public default <E2> GraphTraversal<S, E2> select(final Traversal<S, E2> keyTraversal) {
+        this.asAdmin().getBytecode().addStep(Symbols.select, keyTraversal);
+        return this.asAdmin().addStep(new TraversalSelectStep<>(this.asAdmin(), null, keyTraversal));
     }
 
     /**
@@ -853,7 +866,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default <E2 extends Number> GraphTraversal<S, E2> sum(final Scope scope) {
         this.asAdmin().getBytecode().addStep(Symbols.sum, scope);
-        return this.asAdmin().addStep(scope.equals(Scope.global) ? new SumGlobalStep<>(this.asAdmin()) : new SumLocalStep(this.asAdmin()));
+        return this.asAdmin().addStep(scope.equals(Scope.global) ? new SumGlobalStep<>(this.asAdmin()) : new SumLocalStep<>(this.asAdmin()));
     }
 
     /**
@@ -877,7 +890,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default <E2 extends Number> GraphTraversal<S, E2> max(final Scope scope) {
         this.asAdmin().getBytecode().addStep(Symbols.max, scope);
-        return this.asAdmin().addStep(scope.equals(Scope.global) ? new MaxGlobalStep<>(this.asAdmin()) : new MaxLocalStep(this.asAdmin()));
+        return this.asAdmin().addStep(scope.equals(Scope.global) ? new MaxGlobalStep<>(this.asAdmin()) : new MaxLocalStep<>(this.asAdmin()));
     }
 
     /**
@@ -925,7 +938,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default <E2 extends Number> GraphTraversal<S, E2> mean(final Scope scope) {
         this.asAdmin().getBytecode().addStep(Symbols.mean, scope);
-        return this.asAdmin().addStep(scope.equals(Scope.global) ? new MeanGlobalStep<>(this.asAdmin()) : new MeanLocalStep(this.asAdmin()));
+        return this.asAdmin().addStep(scope.equals(Scope.global) ? new MeanGlobalStep(this.asAdmin()) : new MeanLocalStep(this.asAdmin()));
     }
 
     /**
@@ -939,16 +952,6 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
     public default <K, V> GraphTraversal<S, Map<K, V>> group() {
         this.asAdmin().getBytecode().addStep(Symbols.group);
         return this.asAdmin().addStep(new GroupStep<>(this.asAdmin()));
-    }
-
-    /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.0, replaced by {@link #group()}
-     */
-    @Deprecated
-    public default <K, V> GraphTraversal<S, Map<K, V>> groupV3d0() {
-        this.asAdmin().getBytecode().addStep(Symbols.groupV3d0);
-        return this.asAdmin().addStep(new GroupStepV3d0<>(this.asAdmin()));
     }
 
     /**
@@ -990,6 +993,18 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
     }
 
     /**
+     * Adds a {@link Vertex} with a vertex label determined by a {@link Traversal}.
+     *
+     * @return the traversal with the {@link AddVertexStep} added
+     * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#addvertex-step" target="_blank">Reference Documentation - AddVertex Step</a>
+     * @since 3.3.1
+     */
+    public default GraphTraversal<S, Vertex> addV(final Traversal<?, String> vertexLabelTraversal) {
+        this.asAdmin().getBytecode().addStep(Symbols.addV, vertexLabelTraversal);
+        return this.asAdmin().addStep(new AddVertexStep<>(this.asAdmin(), vertexLabelTraversal.asAdmin()));
+    }
+
+    /**
      * Adds a {@link Vertex} with a default vertex label.
      *
      * @return the traversal with the {@link AddVertexStep} added
@@ -998,20 +1013,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default GraphTraversal<S, Vertex> addV() {
         this.asAdmin().getBytecode().addStep(Symbols.addV);
-        return this.asAdmin().addStep(new AddVertexStep<>(this.asAdmin(), null));
-    }
-
-    /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.0, replaced by {@link #addV()}
-     */
-    @Deprecated
-    public default GraphTraversal<S, Vertex> addV(final Object... propertyKeyValues) {
-        this.addV();
-        for (int i = 0; i < propertyKeyValues.length; i = i + 2) {
-            this.property(propertyKeyValues[i], propertyKeyValues[i + 1]);
-        }
-        return (GraphTraversal<S, Vertex>) this;
+        return this.asAdmin().addStep(new AddVertexStep<>(this.asAdmin(), (String) null));
     }
 
     /**
@@ -1025,6 +1027,18 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
     public default GraphTraversal<S, Edge> addE(final String edgeLabel) {
         this.asAdmin().getBytecode().addStep(Symbols.addE, edgeLabel);
         return this.asAdmin().addStep(new AddEdgeStep<>(this.asAdmin(), edgeLabel));
+    }
+
+    /**
+     * Adds a {@link Edge} with an edge label determined by a {@link Traversal}.
+     *
+     * @return the traversal with the {@link AddEdgeStep} added
+     * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#addedge-step" target="_blank">Reference Documentation - AddEdge Step</a>
+     * @since 3.3.1
+     */
+    public default GraphTraversal<S, Edge> addE(final Traversal<?, String> edgeLabelTraversal) {
+        this.asAdmin().getBytecode().addStep(Symbols.addE, edgeLabelTraversal);
+        return this.asAdmin().addStep(new AddEdgeStep<>(this.asAdmin(), edgeLabelTraversal.asAdmin()));
     }
 
     /**
@@ -1064,7 +1078,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#addedge-step" target="_blank">Reference Documentation - From Step</a>
      * @since 3.1.0-incubating
      */
-    public default GraphTraversal<S, E> to(final Traversal<E, Vertex> toVertex) {
+    public default GraphTraversal<S, E> to(final Traversal<?, Vertex> toVertex) {
         this.asAdmin().getBytecode().addStep(Symbols.to, toVertex);
         ((FromToModulating) this.asAdmin().getEndStep()).addTo(toVertex.asAdmin());
         return this;
@@ -1079,63 +1093,52 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#addedge-step" target="_blank">Reference Documentation - From Step</a>
      * @since 3.1.0-incubating
      */
-    public default GraphTraversal<S, E> from(final Traversal<E, Vertex> fromVertex) {
+    public default GraphTraversal<S, E> from(final Traversal<?, Vertex> fromVertex) {
         this.asAdmin().getBytecode().addStep(Symbols.from, fromVertex);
         ((FromToModulating) this.asAdmin().getEndStep()).addFrom(fromVertex.asAdmin());
         return this;
     }
 
     /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.0, replaced by {@link #addE(String)}
+     * When used as a modifier to {@link #addE(String)} this method specifies the traversal to use for selecting the
+     * incoming vertex of the newly added {@link Edge}.
+     *
+     * @param toVertex the vertex for selecting the incoming vertex
+     * @return the traversal with the modified {@link AddEdgeStep}
+     * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#addedge-step" target="_blank">Reference Documentation - From Step</a>
+     * @since 3.3.0
      */
-    @Deprecated
-    public default GraphTraversal<S, Edge> addE(final Direction direction, final String firstVertexKeyOrEdgeLabel, final String edgeLabelOrSecondVertexKey, final Object... propertyKeyValues) {
-        if (propertyKeyValues.length % 2 == 0) {
-            // addOutE("createdBy", "a")
-            this.addE(firstVertexKeyOrEdgeLabel);
-            if (direction.equals(Direction.OUT))
-                this.to(edgeLabelOrSecondVertexKey);
-            else
-                this.from(edgeLabelOrSecondVertexKey);
-
-            for (int i = 0; i < propertyKeyValues.length; i = i + 2) {
-                this.property(propertyKeyValues[i], propertyKeyValues[i + 1]);
-            }
-            //((Mutating) this.asAdmin().getEndStep()).addPropertyMutations(propertyKeyValues);
-            return (GraphTraversal<S, Edge>) this;
-        } else {
-            // addInE("a", "codeveloper", "b", "year", 2009)
-            this.addE(edgeLabelOrSecondVertexKey);
-            if (direction.equals(Direction.OUT))
-                this.from(firstVertexKeyOrEdgeLabel).to((String) propertyKeyValues[0]);
-            else
-                this.to(firstVertexKeyOrEdgeLabel).from((String) propertyKeyValues[0]);
-
-            for (int i = 1; i < propertyKeyValues.length; i = i + 2) {
-                this.property(propertyKeyValues[i], propertyKeyValues[i + 1]);
-            }
-            //((Mutating) this.asAdmin().getEndStep()).addPropertyMutations(Arrays.copyOfRange(propertyKeyValues, 1, propertyKeyValues.length));
-            return (GraphTraversal<S, Edge>) this;
-        }
+    public default GraphTraversal<S, E> to(final Vertex toVertex) {
+        this.asAdmin().getBytecode().addStep(Symbols.to, toVertex);
+        ((FromToModulating) this.asAdmin().getEndStep()).addTo(__.constant(toVertex).asAdmin());
+        return this;
     }
 
     /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.0, replaced by {@link #addE(String)}
+     * When used as a modifier to {@link #addE(String)} this method specifies the traversal to use for selecting the
+     * outgoing vertex of the newly added {@link Edge}.
+     *
+     * @param fromVertex the vertex for selecting the outgoing vertex
+     * @return the traversal with the modified {@link AddEdgeStep}
+     * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#addedge-step" target="_blank">Reference Documentation - From Step</a>
+     * @since 3.3.0
      */
-    @Deprecated
-    public default GraphTraversal<S, Edge> addOutE(final String firstVertexKeyOrEdgeLabel, final String edgeLabelOrSecondVertexKey, final Object... propertyKeyValues) {
-        return this.addE(Direction.OUT, firstVertexKeyOrEdgeLabel, edgeLabelOrSecondVertexKey, propertyKeyValues);
+    public default GraphTraversal<S, E> from(final Vertex fromVertex) {
+        this.asAdmin().getBytecode().addStep(Symbols.from, fromVertex);
+        ((FromToModulating) this.asAdmin().getEndStep()).addFrom(__.constant(fromVertex).asAdmin());
+        return this;
     }
 
     /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.0, replaced by {@link #addE(String)}
+     * Map the {@link Traverser} to a {@link Double} according to the mathematical expression provided in the argument.
+     *
+     * @param expression the mathematical expression with variables refering to scope variables.
+     * @return the traversal with the {@link MathStep} added.
+     * @since 3.3.1
      */
-    @Deprecated
-    public default GraphTraversal<S, Edge> addInE(final String firstVertexKeyOrEdgeLabel, final String edgeLabelOrSecondVertexKey, final Object... propertyKeyValues) {
-        return this.addE(Direction.IN, firstVertexKeyOrEdgeLabel, edgeLabelOrSecondVertexKey, propertyKeyValues);
+    public default GraphTraversal<S, Double> math(final String expression) {
+        this.asAdmin().getBytecode().addStep(Symbols.math, expression);
+        return this.asAdmin().addStep(new MathStep<>(this.asAdmin(), expression));
     }
 
     ///////////////////// FILTER STEPS /////////////////////
@@ -1424,7 +1427,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default GraphTraversal<S, E> has(final String propertyKey) {
         this.asAdmin().getBytecode().addStep(Symbols.has, propertyKey);
-        return this.asAdmin().addStep(new TraversalFilterStep<>(this.asAdmin(), __.values(propertyKey)));
+        return this.asAdmin().addStep(new TraversalFilterStep(this.asAdmin(), __.values(propertyKey)));
     }
 
     /**
@@ -1437,7 +1440,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default GraphTraversal<S, E> hasNot(final String propertyKey) {
         this.asAdmin().getBytecode().addStep(Symbols.hasNot, propertyKey);
-        return this.asAdmin().addStep(new NotStep<>(this.asAdmin(), __.values(propertyKey)));
+        return this.asAdmin().addStep(new NotStep(this.asAdmin(), __.values(propertyKey)));
     }
 
     /**
@@ -1778,6 +1781,35 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
     }
 
     /**
+     * Filters out the first {@code n} objects in the traversal.
+     *
+     * @param skip the number of objects to skip
+     * @return the traversal with an appended {@link RangeGlobalStep}
+     * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#skip-step" target="_blank">Reference Documentation - Skip Step</a>
+     * @since 3.3.0
+     */
+    public default GraphTraversal<S, E> skip(final long skip) {
+        this.asAdmin().getBytecode().addStep(Symbols.skip, skip);
+        return this.asAdmin().addStep(new RangeGlobalStep<>(this.asAdmin(), skip, -1));
+    }
+
+    /**
+     * Filters out the first {@code n} objects in the traversal.
+     *
+     * @param scope the scope of how to apply the {@code tail}
+     * @param skip  the number of objects to skip
+     * @return the traversal with an appended {@link RangeGlobalStep} or {@link RangeLocalStep} depending on {@code scope}
+     * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#skip-step" target="_blank">Reference Documentation - Skip Step</a>
+     * @since 3.3.0
+     */
+    public default <E2> GraphTraversal<S, E2> skip(final Scope scope, final long skip) {
+        this.asAdmin().getBytecode().addStep(Symbols.skip, scope, skip);
+        return this.asAdmin().addStep(scope.equals(Scope.global)
+                ? new RangeGlobalStep<>(this.asAdmin(), skip, -1)
+                : new RangeLocalStep<>(this.asAdmin(), skip, -1));
+    }
+
+    /**
      * Once the first {@link Traverser} hits this step, a count down is started. Once the time limit is up, all remaining traversers are filtered out.
      *
      * @param timeLimit the count down time
@@ -1942,15 +1974,6 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
     }
 
     /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.0, replaced by {@link #group(String)}.
-     */
-    public default GraphTraversal<S, E> groupV3d0(final String sideEffectKey) {
-        this.asAdmin().getBytecode().addStep(Symbols.groupV3d0, sideEffectKey);
-        return this.asAdmin().addStep(new GroupSideEffectStepV3d0<>(this.asAdmin(), sideEffectKey));
-    }
-
-    /**
      * Counts the number of times a particular objects has been part of a traversal, returning a {@code Map} where the
      * object is the key and the value is the count.
      *
@@ -1988,15 +2011,6 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
     public default <V, U> GraphTraversal<S, E> sack(final BiFunction<V, U, V> sackOperator) {
         this.asAdmin().getBytecode().addStep(Symbols.sack, sackOperator);
         return this.asAdmin().addStep(new SackValueStep<>(this.asAdmin(), sackOperator));
-    }
-
-    /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.0, replaced by {@link #sack(BiFunction)} with {@link #by(String)}.
-     */
-    @Deprecated
-    public default <V, U> GraphTraversal<S, E> sack(final BiFunction<V, U, V> sackOperator, final String elementPropertyKey) {
-        return this.sack(sackOperator).by(elementPropertyKey);
     }
 
     /**
@@ -2068,7 +2082,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
         // if it can be detected that this call to property() is related to an addV/E() then we can attempt to fold
         // the properties into that step to gain an optimization for those graphs that support such capabilities.
         final Step endStep = this.asAdmin().getEndStep();
-        if ((endStep instanceof AddVertexStep || endStep instanceof AddEdgeStep || endStep instanceof AddVertexStartStep) &&
+        if ((endStep instanceof AddVertexStep || endStep instanceof AddEdgeStep || endStep instanceof AddVertexStartStep || endStep instanceof AddEdgeStartStep) &&
                 keyValues.length == 0 && null == cardinality) {
             ((Mutating) endStep).addPropertyMutations(key, value);
         } else {
@@ -2242,7 +2256,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default <E2> GraphTraversal<S, E2> optional(final Traversal<?, E2> optionalTraversal) {
         this.asAdmin().getBytecode().addStep(Symbols.optional, optionalTraversal);
-        return this.asAdmin().addStep(new ChooseStep<>(this.asAdmin(), (Traversal.Admin<E, ?>) optionalTraversal, (Traversal.Admin<E, E2>) optionalTraversal.asAdmin().clone(), (Traversal.Admin<E, E2>) __.<E2>identity()));
+        return this.asAdmin().addStep(new OptionalStep<>(this.asAdmin(), (Traversal.Admin<E2, E2>) optionalTraversal));
     }
 
     /**
@@ -2255,7 +2269,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default <E2> GraphTraversal<S, E2> union(final Traversal<?, E2>... unionTraversals) {
         this.asAdmin().getBytecode().addStep(Symbols.union, unionTraversals);
-        return this.asAdmin().addStep(new UnionStep(this.asAdmin(), Arrays.copyOf(unionTraversals, unionTraversals.length, Traversal.Admin[].class)));
+        return this.asAdmin().addStep(new UnionStep<>(this.asAdmin(), Arrays.copyOf(unionTraversals, unionTraversals.length, Traversal.Admin[].class)));
     }
 
     /**
@@ -2268,7 +2282,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      */
     public default <E2> GraphTraversal<S, E2> coalesce(final Traversal<?, E2>... coalesceTraversals) {
         this.asAdmin().getBytecode().addStep(Symbols.coalesce, coalesceTraversals);
-        return this.asAdmin().addStep(new CoalesceStep(this.asAdmin(), Arrays.copyOf(coalesceTraversals, coalesceTraversals.length, Traversal.Admin[].class)));
+        return this.asAdmin().addStep(new CoalesceStep<>(this.asAdmin(), Arrays.copyOf(coalesceTraversals, coalesceTraversals.length, Traversal.Admin[].class)));
     }
 
     /**
@@ -2388,7 +2402,8 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      * @since 3.2.0-incubating
      */
     public default GraphTraversal<S, E> pageRank() {
-        return this.pageRank(0.85d);
+        this.asAdmin().getBytecode().addStep(Symbols.pageRank);
+        return this.asAdmin().addStep((Step<E, E>) new PageRankVertexProgramStep(this.asAdmin(), 0.85d));
     }
 
     /**
@@ -2458,7 +2473,8 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      * @since 3.0.0-incubating
      */
     public default GraphTraversal<S, E> barrier() {
-        return this.barrier(Integer.MAX_VALUE);
+        this.asAdmin().getBytecode().addStep(Symbols.barrier);
+        return this.asAdmin().addStep(new NoOpBarrierStep<>(this.asAdmin(), Integer.MAX_VALUE));
     }
 
     /**
@@ -2658,9 +2674,9 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#choose-step" target="_blank">Reference Documentation - Choose Step</a>
      * @since 3.0.0-incubating
      */
-    public default <M, E2> GraphTraversal<S, E> option(final M pickToken, final Traversal<E, E2> traversalOption) {
+    public default <M, E2> GraphTraversal<S, E> option(final M pickToken, final Traversal<?, E2> traversalOption) {
         this.asAdmin().getBytecode().addStep(Symbols.option, pickToken, traversalOption);
-        ((TraversalOptionParent<M, E, E2>) this.asAdmin().getEndStep()).addGlobalChildOption(pickToken, traversalOption.asAdmin());
+        ((TraversalOptionParent<M, E, E2>) this.asAdmin().getEndStep()).addGlobalChildOption(pickToken, (Traversal.Admin<E, E2>) traversalOption.asAdmin());
         return this;
     }
 
@@ -2672,9 +2688,10 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
      * @see <a href="http://tinkerpop.apache.org/docs/${project.version}/reference/#choose-step" target="_blank">Reference Documentation - Choose Step</a>
      * @since 3.0.0-incubating
      */
-    public default <E2> GraphTraversal<S, E> option(final Traversal<E, E2> traversalOption) {
+    public default <E2> GraphTraversal<S, E> option(final Traversal<?, E2> traversalOption) {
         this.asAdmin().getBytecode().addStep(Symbols.option, traversalOption);
-        return this.option(TraversalOptionParent.Pick.any, traversalOption.asAdmin());
+        ((TraversalOptionParent<Object, E, E2>) this.asAdmin().getEndStep()).addGlobalChildOption(TraversalOptionParent.Pick.any, (Traversal.Admin<E, E2>) traversalOption.asAdmin());
+        return this;
     }
 
     ////
@@ -2727,6 +2744,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
         public static final String value = "value";
         public static final String path = "path";
         public static final String match = "match";
+        public static final String math = "math";
         public static final String sack = "sack";
         public static final String loops = "loops";
         public static final String project = "project";
@@ -2738,8 +2756,6 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
         public static final String min = "min";
         public static final String mean = "mean";
         public static final String group = "group";
-        @Deprecated
-        public static final String groupV3d0 = "groupV3d0";
         public static final String groupCount = "groupCount";
         public static final String tree = "tree";
         public static final String addV = "addV";
@@ -2761,6 +2777,7 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
         public static final String not = "not";
         public static final String range = "range";
         public static final String limit = "limit";
+        public static final String skip = "skip";
         public static final String tail = "tail";
         public static final String coin = "coin";
 

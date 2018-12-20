@@ -18,7 +18,6 @@
  */
 package org.apache.tinkerpop.gremlin.groovy.jsr223;
 
-import org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.CompilationOptionsCustomizerProvider;
 import org.junit.Test;
 
 import javax.script.Bindings;
@@ -30,33 +29,11 @@ import static org.junit.Assert.assertEquals;
  * @author Stephen Mallette (http://stephen.genoprime.com)
  */
 public class GremlinGroovyScriptEngineCompilationOptionsTest {
-    @Test
-    public void shouldRegisterLongCompilationDeprecated() throws Exception {
-        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine(new CompilationOptionsCustomizerProvider(10));
-
-        final int numberOfParameters = 3000;
-        final Bindings b = new SimpleBindings();
-
-        // generate a script that takes a long time to compile
-        String script = "x = 0";
-        for (int ix = 0; ix < numberOfParameters; ix++) {
-            if (ix > 0 && ix % 100 == 0) {
-                script = script + ";" + System.lineSeparator() + "x = x";
-            }
-            script = script + " + x" + ix;
-            b.put("x" + ix, ix);
-        }
-
-        assertEquals(0, engine.getClassCacheLongRunCompilationCount());
-
-        engine.eval(script, b);
-
-        assertEquals(1, engine.getClassCacheLongRunCompilationCount());
-    }
 
     @Test
     public void shouldRegisterLongCompilation() throws Exception {
-        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine(new CompilationOptionsCustomizer(10));
+        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine(
+                CompilationOptionsCustomizer.build().setExpectedCompilationTime(10).create());
 
         final int numberOfParameters = 3000;
         final Bindings b = new SimpleBindings();

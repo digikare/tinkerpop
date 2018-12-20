@@ -41,6 +41,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.junit.Assert.assertEquals;
+
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
  */
@@ -48,6 +50,7 @@ public final class TranslationStrategy extends AbstractTraversalStrategy<Travers
 
     private final TraversalSource traversalSource;
     private final Translator translator;
+    private final boolean assertBytecode;
 
     private static final Set<Class<? extends DecorationStrategy>> POSTS = new HashSet<>(Arrays.asList(
             ConnectiveStrategy.class,
@@ -62,9 +65,10 @@ public final class TranslationStrategy extends AbstractTraversalStrategy<Travers
             RemoteStrategy.class,
             VertexProgramStrategy.class));
 
-    public TranslationStrategy(final TraversalSource traversalSource, final Translator translator) {
+    public TranslationStrategy(final TraversalSource traversalSource, final Translator translator, final boolean assertBytecode) {
         this.traversalSource = traversalSource;
         this.translator = translator;
+        this.assertBytecode = assertBytecode;
     }
 
     @Override
@@ -72,18 +76,9 @@ public final class TranslationStrategy extends AbstractTraversalStrategy<Travers
         if (!(traversal.getParent() instanceof EmptyStep))
             return;
 
-        // verifications to ensure unsupported steps do not exist in the traversal
-        if (Boolean.valueOf(System.getProperty("is.testing", "false"))) {
-            if (traversal.getBytecode().toString().contains("$") || traversal.getBytecode().toString().contains("HashSetSupplier"))
-                throw new VerificationException("Test suite does not support lambdas", traversal);
-            if (TraversalHelper.hasStepOfAssignableClassRecursively(ProgramVertexProgramStep.class, traversal))
-                throw new VerificationException("Test suite does not support embedded vertex programs", traversal);
-        }
-
         final Traversal.Admin<?, ?> translatedTraversal;
-        final Bytecode bytecode = Boolean.valueOf(System.getProperty("is.testing", "false")) ?
-                insertBindingsForTesting(traversal.getBytecode()) :
-                traversal.getBytecode();
+        final Bytecode bytecode = removeTranslationStrategy(insertBindingsForTesting(traversal.getBytecode()));
+
         ////////////////
         if (this.translator instanceof Translator.StepTranslator) {
             // reflection based translation
@@ -108,6 +103,13 @@ public final class TranslationStrategy extends AbstractTraversalStrategy<Travers
         traversal.setSideEffects(translatedTraversal.getSideEffects());
         TraversalHelper.removeAllSteps(traversal);
         TraversalHelper.removeToTraversal((Step) translatedTraversal.getStartStep(), EmptyStep.instance(), traversal);
+        ////////////////
+
+        // this tests to ensure that the bytecode being translated is the same as the bytecode of the generated
+        // traversal. we might not do this sometimes in testing if lambdas are present but still want to use
+        // TranslationStrategy
+        if (assertBytecode)
+            assertEquals(removeTranslationStrategy(traversal.getBytecode()), translatedTraversal.getBytecode());
     }
 
 
@@ -116,9 +118,17 @@ public final class TranslationStrategy extends AbstractTraversalStrategy<Travers
         return POSTS;
     }
 
+    private static final Bytecode removeTranslationStrategy(final Bytecode bytecode) {
+        if (bytecode.getSourceInstructions().size() > 0)
+            bytecode.getSourceInstructions().remove(0);
+        return bytecode;
+    }
+
     private static final Bytecode insertBindingsForTesting(final Bytecode bytecode) {
         final Bytecode newBytecode = new Bytecode();
-        bytecode.getSourceInstructions().forEach(instruction -> newBytecode.addSource(instruction.getOperator(), instruction.getArguments()));
+        for (final Bytecode.Instruction instruction : bytecode.getSourceInstructions()) {
+            newBytecode.addSource(instruction.getOperator(), instruction.getArguments());
+        }
         for (final Bytecode.Instruction instruction : bytecode.getStepInstructions()) {
             final Object[] args = instruction.getArguments();
             final Object[] newArgs = new Object[args.length];

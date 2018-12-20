@@ -37,11 +37,18 @@ import org.apache.tinkerpop.gremlin.spark.process.computer.payload.ViewIncomingP
 import org.apache.tinkerpop.gremlin.spark.process.computer.payload.ViewOutgoingPayload;
 import org.apache.tinkerpop.gremlin.spark.process.computer.payload.ViewPayload;
 import org.apache.tinkerpop.gremlin.spark.structure.io.gryo.kryoshim.unshaded.UnshadedSerializerAdapter;
+import org.apache.tinkerpop.gremlin.structure.io.IoRegistry;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoIo;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoMapper;
-import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoSerializers;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoSerializersV1d0;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoVersion;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.TypeRegistration;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.kryoshim.SerializerShim;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.kryoshim.shaded.ShadedSerializerAdapter;
+import org.apache.tinkerpop.gremlin.structure.io.util.IoRegistryHelper;
 import org.apache.tinkerpop.gremlin.structure.util.star.StarGraph;
+import org.apache.tinkerpop.gremlin.util.SystemUtil;
+import org.javatuples.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.mutable.WrappedArray;
@@ -61,7 +68,7 @@ public class GryoRegistrator implements KryoRegistrator {
     private static final Logger log = LoggerFactory.getLogger(GryoRegistrator.class);
 
     @Override
-    public void registerClasses(Kryo kryo) {
+    public void registerClasses(final Kryo kryo) {
         registerClasses(kryo, Collections.emptyMap(), Collections.emptySet());
     }
 
@@ -101,7 +108,7 @@ public class GryoRegistrator implements KryoRegistrator {
         final Set<Class<?>> shimmedClassesFromGryoMapper = new HashSet<>();
 
         // Apply GryoMapper's default registrations
-        for (TypeRegistration<?> tr : GryoMapper.build().create().getTypeRegistrations()) {
+        for (TypeRegistration<?> tr : GryoMapper.build().version(GryoVersion.V1_0).create().getTypeRegistrations()) {
             // Is this class blacklisted?  Skip it. (takes precedence over serializerOverrides)
             if (blacklist.contains(tr.getTargetClass())) {
                 log.debug("Not registering serializer for {} (blacklisted)", tr.getTargetClass());
@@ -160,6 +167,18 @@ public class GryoRegistrator implements KryoRegistrator {
         if (!shimmedClassesFromGryoMapper.contains(StarGraph.class)) {
             log.warn("No SerializerShim found for StarGraph");
         }
+
+        // handle io-registry classes
+        for (final IoRegistry registry : IoRegistryHelper.createRegistries(SystemUtil.getSystemPropertiesConfiguration("tinkerpop", true))) {
+            for (final Pair<Class, Object> pair : registry.find(GryoIo.class)) {
+                if (pair.getValue1() instanceof SerializerShim)
+                    kryo.register(pair.getValue0(), new UnshadedSerializerAdapter((SerializerShim) pair.getValue1()));
+                else if (pair.getValue1() instanceof ShadedSerializerAdapter)
+                    kryo.register(pair.getValue0(), new UnshadedSerializerAdapter(((ShadedSerializerAdapter) pair.getValue1()).getSerializerShim()));
+                else
+                    kryo.register(pair.getValue0(), kryo.getDefaultSerializer(pair.getValue0()));
+            }
+        }
     }
 
     private LinkedHashMap<Class<?>, Serializer<?>> getExtraRegistrations() {
@@ -178,13 +197,14 @@ public class GryoRegistrator implements KryoRegistrator {
         // duplication, but it would be a bit cumbersome to do so without disturbing
         // the ordering of the existing entries in that constructor, since not all
         // of the entries are for TinkerPop (and the ordering is significant).
-        if (Boolean.valueOf(System.getProperty("is.testing", "false"))) {
-            try {
-                m.put(Class.forName("scala.reflect.ClassTag$$anon$1"), new JavaSerializer());
-                m.put(Class.forName("scala.reflect.ManifestFactory$$anon$1"), new JavaSerializer());
-            } catch (final ClassNotFoundException e) {
-                throw new IllegalStateException(e.getMessage(), e);
-            }
+        try {
+            m.put(Class.forName("scala.reflect.ClassTag$$anon$1"), new JavaSerializer());
+            m.put(Class.forName("scala.reflect.ManifestFactory$$anon$1"), new JavaSerializer());
+            m.put(Class.forName("org.apache.spark.internal.io.FileCommitProtocol$TaskCommitMessage"), new JavaSerializer());
+            m.put(Class.forName("org.apache.spark.internal.io.FileCommitProtocol$EmptyTaskCommitMessage$"), new JavaSerializer());
+
+        } catch (final ClassNotFoundException e) {
+            throw new IllegalStateException(e.getMessage(), e);
         }
         m.put(WrappedArray.ofRef.class, null);
         m.put(MessagePayload.class, null);
@@ -194,23 +214,23 @@ public class GryoRegistrator implements KryoRegistrator {
         m.put(VertexWritable.class, new UnshadedSerializerAdapter<>(new VertexWritableSerializer()));
         m.put(ObjectWritable.class, new UnshadedSerializerAdapter<>(new ObjectWritableSerializer<>()));
         //
-        m.put(HadoopVertex.class, new UnshadedSerializerAdapter<>(new GryoSerializers.VertexSerializer()));
-        m.put(HadoopVertexProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializers.VertexPropertySerializer()));
-        m.put(HadoopProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializers.PropertySerializer()));
-        m.put(HadoopEdge.class, new UnshadedSerializerAdapter<>(new GryoSerializers.EdgeSerializer()));
+        m.put(HadoopVertex.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.VertexSerializer()));
+        m.put(HadoopVertexProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.VertexPropertySerializer()));
+        m.put(HadoopProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.PropertySerializer()));
+        m.put(HadoopEdge.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.EdgeSerializer()));
         //
-        m.put(ComputerGraph.ComputerVertex.class, new UnshadedSerializerAdapter<>(new GryoSerializers.VertexSerializer()));
-        m.put(ComputerGraph.ComputerVertexProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializers.VertexPropertySerializer()));
-        m.put(ComputerGraph.ComputerProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializers.PropertySerializer()));
-        m.put(ComputerGraph.ComputerEdge.class, new UnshadedSerializerAdapter<>(new GryoSerializers.EdgeSerializer()));
+        m.put(ComputerGraph.ComputerVertex.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.VertexSerializer()));
+        m.put(ComputerGraph.ComputerVertexProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.VertexPropertySerializer()));
+        m.put(ComputerGraph.ComputerProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.PropertySerializer()));
+        m.put(ComputerGraph.ComputerEdge.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.EdgeSerializer()));
         //
-        m.put(StarGraph.StarEdge.class, new UnshadedSerializerAdapter<>(new GryoSerializers.EdgeSerializer()));
-        m.put(StarGraph.StarVertex.class, new UnshadedSerializerAdapter<>(new GryoSerializers.VertexSerializer()));
-        m.put(StarGraph.StarProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializers.PropertySerializer()));
-        m.put(StarGraph.StarVertexProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializers.VertexPropertySerializer()));
+        m.put(StarGraph.StarEdge.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.EdgeSerializer()));
+        m.put(StarGraph.StarVertex.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.VertexSerializer()));
+        m.put(StarGraph.StarProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.PropertySerializer()));
+        m.put(StarGraph.StarVertexProperty.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.VertexPropertySerializer()));
         //
-        m.put(MutablePath.class, new UnshadedSerializerAdapter<>(new GryoSerializers.PathSerializer()));
-        m.put(ImmutablePath.class, new UnshadedSerializerAdapter<>(new GryoSerializers.PathSerializer()));
+        m.put(MutablePath.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.PathSerializer()));
+        m.put(ImmutablePath.class, new UnshadedSerializerAdapter<>(new GryoSerializersV1d0.PathSerializer()));
         //
         m.put(CompactBuffer[].class, null);
         // TODO: VoidSerializer is a default serializer and thus, may not be needed (if it is, you can't use FieldSerializer)

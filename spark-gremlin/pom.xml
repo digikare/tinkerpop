@@ -24,11 +24,16 @@
     <parent>
         <groupId>org.apache.tinkerpop</groupId>
         <artifactId>tinkerpop</artifactId>
-        <version>3.2.10</version>
+        <version>3.3.5-SNAPSHOT</version>
     </parent>
     <artifactId>spark-gremlin</artifactId>
     <name>Apache TinkerPop :: Spark Gremlin</name>
     <dependencies>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>14.0.1</version>
+        </dependency>
         <dependency>
             <groupId>org.apache.tinkerpop</groupId>
             <artifactId>gremlin-core</artifactId>
@@ -42,17 +47,16 @@
         </dependency>
         <dependency>
             <groupId>org.apache.tinkerpop</groupId>
-            <artifactId>gremlin-groovy</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.tinkerpop</groupId>
             <artifactId>hadoop-gremlin</artifactId>
             <version>${project.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>javax.servlet</groupId>
                     <artifactId>servlet-api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>javax.servlet</groupId>
+                    <artifactId>javax.servlet-api</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.sun.jersey</groupId>
@@ -103,25 +107,53 @@
         <!-- SPARK -->
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.10</artifactId>
+            <artifactId>spark-core_2.11</artifactId>
             <version>${spark.version}</version>
             <exclusions>
                 <!-- self conflicts -->
                 <exclusion>
-                    <groupId>javax.servlet</groupId>
-                    <artifactId>servlet-api</artifactId>
+                    <groupId>org.scala-lang</groupId>
+                    <artifactId>scala-compiler</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpclient</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.scala-lang.modules</groupId>
+                    <artifactId>scala-xml_2.11</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>javax.activation</groupId>
+                    <artifactId>activation</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.codehaus.jackson</groupId>
+                    <artifactId>jackson-mapper-asl</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.codehaus.jackson</groupId>
+                    <artifactId>jackson-core-asl</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.scala-lang</groupId>
                     <artifactId>scala-library</artifactId>
                 </exclusion>
                 <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-databind</artifactId>
+                </exclusion>
+                <exclusion>
                     <groupId>org.scala-lang</groupId>
                     <artifactId>scala-reflect</artifactId>
                 </exclusion>
                 <exclusion>
-                    <groupId>com.fasterxml.jackson.core</groupId>
-                    <artifactId>jackson-databind</artifactId>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpcore</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>javax.servlet</groupId>
+                    <artifactId>servlet-api</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.fasterxml.jackson.core</groupId>
@@ -199,18 +231,37 @@
                     <groupId>com.google.code.findbugs</groupId>
                     <artifactId>jsr305</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-all</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <!-- consistent dependencies -->
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
-            <version>2.10.5</version>
+            <version>2.11.8</version>
+        </dependency>
+        <dependency>
+            <groupId>org.scala-lang.modules</groupId>
+            <artifactId>scala-xml_2.11</artifactId>
+            <version>1.0.5</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.scala-lang</groupId>
+                    <artifactId>scala-library</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.4.4</version>
+            <version>2.6.5</version>
         </dependency>
         <dependency>
             <groupId>commons-lang</groupId>
@@ -227,6 +278,16 @@
             <artifactId>snappy-java</artifactId>
             <version>1.1.1.7</version>
         </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>4.0.43.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty</artifactId>
+            <version>3.9.9.Final</version>
+        </dependency>
         <!-- TEST -->
         <dependency>
             <groupId>org.apache.tinkerpop</groupId>
@@ -237,6 +298,10 @@
                 <exclusion>
                     <groupId>com.google.guava</groupId>
                     <artifactId>guava</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.objenesis</groupId>
+                    <artifactId>objenesis</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -296,12 +361,6 @@
                     <artifactId>paranamer</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.tinkerpop</groupId>
-            <artifactId>gremlin-groovy-test</artifactId>
-            <version>${project.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.tinkerpop</groupId>
@@ -383,7 +442,7 @@
                     <archive>
                         <manifestEntries>
                             <Gremlin-Plugin-Dependencies>
-                                org.apache.hadoop:hadoop-client:${hadoop.version};org.apache.hadoop:hadoop-yarn-server-web-proxy:${hadoop.version};org.apache.spark:spark-yarn_2.10:${spark.version}
+                                org.apache.hadoop:hadoop-client:${hadoop.version};org.apache.hadoop:hadoop-yarn-server-web-proxy:${hadoop.version};org.apache.spark:spark-yarn_2.11:${spark.version}
                             </Gremlin-Plugin-Dependencies>
                             <!-- deletes the servlet-api jar from the path after install - causes conflicts -->
                             <Gremlin-Plugin-Paths>servlet-api-2.5.jar=</Gremlin-Plugin-Paths>

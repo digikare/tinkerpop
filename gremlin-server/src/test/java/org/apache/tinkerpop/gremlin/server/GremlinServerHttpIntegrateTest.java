@@ -19,8 +19,11 @@
 package org.apache.tinkerpop.gremlin.server;
 
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV1d0;
 import org.apache.tinkerpop.gremlin.driver.Tokens;
 import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV2d0;
+import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV3d0;
+import org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin;
 import org.apache.tinkerpop.gremlin.server.auth.SimpleAuthenticator;
 import org.apache.tinkerpop.gremlin.server.channel.HttpChannelizer;
 import org.apache.tinkerpop.gremlin.server.handler.HttpBasicAuthenticationHandler;
@@ -42,7 +45,6 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -79,11 +81,23 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
                 deleteDirectory(new File("/tmp/neo4j"));
                 settings.graphs.put("graph", "conf/neo4j-empty.properties");
                 break;
+            case "should200OnPOSTWithGraphSON1d0AcceptHeaderDefaultResultToJson":
+                settings.serializers.clear();
+                final Settings.SerializerSettings serializerSettingsV1 = new Settings.SerializerSettings();
+                serializerSettingsV1.className = GraphSONMessageSerializerV1d0.class.getName();
+                settings.serializers.add(serializerSettingsV1);
+                break;
             case "should200OnPOSTWithGraphSON2d0AcceptHeaderDefaultResultToJson":
                 settings.serializers.clear();
-                final Settings.SerializerSettings serializerSettings = new Settings.SerializerSettings();
-                serializerSettings.className = GraphSONMessageSerializerV2d0.class.getName();
-                settings.serializers.add(serializerSettings);
+                final Settings.SerializerSettings serializerSettingsV2 = new Settings.SerializerSettings();
+                serializerSettingsV2.className = GraphSONMessageSerializerV2d0.class.getName();
+                settings.serializers.add(serializerSettingsV2);
+                break;
+            case "should200OnPOSTWithGraphSON3d0AcceptHeaderDefaultResultToJson":
+                settings.serializers.clear();
+                final Settings.SerializerSettings serializerSettingsV3 = new Settings.SerializerSettings();
+                serializerSettingsV3.className = GraphSONMessageSerializerV3d0.class.getName();
+                settings.serializers.add(serializerSettingsV3);
                 break;
             case "should401OnGETWithNoAuthorizationHeader":
             case "should401OnPOSTWithNoAuthorizationHeader":
@@ -94,9 +108,11 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             case "should401OnGETWithInvalidPasswordAuthorizationHeader":
             case "should401OnPOSTWithInvalidPasswordAuthorizationHeader":
             case "should200OnGETWithAuthorizationHeader":
-            case "should401OnPOSTWithInvalidPasswordAuthorizationHeaderOld":
-            case "should200OnPOSTWithAuthorizationHeaderOld":
-                configureForAuthenticationOld(settings);
+            case "should200OnPOSTWithAuthorizationHeaderExplicitHandlerSetting":
+                configureForAuthenticationWithHandlerClass(settings);
+                break;
+            case "should200OnPOSTWithAuthorizationHeader":
+                configureForAuthentication(settings);
                 break;
         }
         return settings;
@@ -104,7 +120,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
 
     private void configureForAuthentication(final Settings settings) {
         final Settings.AuthenticationSettings authSettings = new Settings.AuthenticationSettings();
-        authSettings.className = SimpleAuthenticator.class.getName();
+        authSettings.authenticator = SimpleAuthenticator.class.getName();
 
         // use a credentials graph with one user in it: stephen/password
         final Map<String,Object> authConfig = new HashMap<>();
@@ -116,7 +132,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
 
     private void configureForAuthenticationWithHandlerClass(final Settings settings) {
         final Settings.AuthenticationSettings authSettings = new Settings.AuthenticationSettings();
-        authSettings.className = SimpleAuthenticator.class.getName();
+        authSettings.authenticator = SimpleAuthenticator.class.getName();
 
         //Add basic auth handler to make sure the reflection code path works.
         authSettings.authenticationHandler = HttpBasicAuthenticationHandler.class.getName();
@@ -124,20 +140,6 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
         // use a credentials graph with one user in it: stephen/password
         final Map<String,Object> authConfig = new HashMap<>();
         authConfig.put(SimpleAuthenticator.CONFIG_CREDENTIALS_DB, "conf/tinkergraph-credentials.properties");
-
-        authSettings.config = authConfig;
-        settings.authentication = authSettings;
-    }
-
-    @Deprecated
-    private void configureForAuthenticationOld(final Settings settings) {
-        final Settings.AuthenticationSettings authSettings = new Settings.AuthenticationSettings();
-        authSettings.className = SimpleAuthenticator.class.getName();
-
-        // use a credentials graph with one user in it: stephen/password
-        final Map<String,Object> authConfig = new HashMap<>();
-        authConfig.put(SimpleAuthenticator.CONFIG_CREDENTIALS_DB, "conf/tinkergraph-empty.properties");
-        authConfig.put(SimpleAuthenticator.CONFIG_CREDENTIALS_LOCATION, "data/credentials.kryo");
 
         authSettings.config = authConfig;
         settings.authentication = authSettings;
@@ -251,20 +253,6 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
     }
 
     @Test
-    @Deprecated
-    public void should401OnPOSTWithInvalidPasswordAuthorizationHeaderOld() throws Exception {
-        final CloseableHttpClient httpclient = HttpClients.createDefault();
-        final HttpPost httppost = new HttpPost(TestClientFactory.createURLString());
-        httppost.addHeader("Content-Type", "application/json");
-        httppost.addHeader("Authorization", "Basic " + encoder.encodeToString("stephen:not-my-password".getBytes()));
-        httppost.setEntity(new StringEntity("{\"gremlin\":\"1-1\"}", Consts.UTF_8));
-
-        try (final CloseableHttpResponse response = httpclient.execute(httppost)) {
-            assertEquals(401, response.getStatusLine().getStatusCode());
-        }
-    }
-
-    @Test
     public void should200OnGETWithAuthorizationHeader() throws Exception {
         final CloseableHttpClient httpclient = HttpClients.createDefault();
         final HttpGet httpget = new HttpGet(TestClientFactory.createURLString("?gremlin=1-1"));
@@ -275,7 +263,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(0, node.get("result").get("data").get(0).intValue());
+            assertEquals(0, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
         }
     }
 
@@ -292,7 +280,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(0, node.get("result").get("data").get(0).intValue());
+            assertEquals(0, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
         }
     }
 
@@ -309,25 +297,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(0, node.get("result").get("data").get(0).intValue());
-        }
-    }
-
-    @Test
-    @Deprecated
-    public void should200OnPOSTWithAuthorizationHeaderOld() throws Exception {
-        final CloseableHttpClient httpclient = HttpClients.createDefault();
-        final HttpPost httppost = new HttpPost(TestClientFactory.createURLString());
-        httppost.addHeader("Content-Type", "application/json");
-        httppost.addHeader("Authorization", "Basic " + encoder.encodeToString("stephen:password".getBytes()));
-        httppost.setEntity(new StringEntity("{\"gremlin\":\"1-1\"}", Consts.UTF_8));
-
-        try (final CloseableHttpResponse response = httpclient.execute(httppost)) {
-            assertEquals(200, response.getStatusLine().getStatusCode());
-            assertEquals("application/json", response.getEntity().getContentType().getValue());
-            final String json = EntityUtils.toString(response.getEntity());
-            final JsonNode node = mapper.readTree(json);
-            assertEquals(0, node.get("result").get("data").get(0).intValue());
+            assertEquals(0, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
         }
     }
 
@@ -341,7 +311,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(20, node.get("result").get("data").get(0).intValue());
+            assertEquals(20, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
         }
     }
 
@@ -355,7 +325,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(6, node.get("result").get("data").size());
+            assertEquals(6, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).size());
         }
     }
 
@@ -370,7 +340,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(6, node.get("result").get("data").size());
+            assertEquals(6, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).size());
         }
 
         final CloseableHttpClient httpclient = HttpClients.createDefault();
@@ -381,7 +351,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(6, node.get("result").get("data").size());
+            assertEquals(6, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).size());
         }
     }
 
@@ -409,7 +379,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals("stephen", node.get("result").get("data").get(0).get("properties").get("name").get(0).get(GraphSONTokens.VALUE).asText());
+            assertEquals("stephen", node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).get("properties").get("name").get(0).get(GraphSONTokens.VALUEPROP).get(GraphSONTokens.VALUE).asText());
         }
     }
 
@@ -423,7 +393,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(20, node.get("result").get("data").get(0).intValue());
+            assertEquals(20, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
         }
     }
 
@@ -448,7 +418,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(0, node.get("result").get("data").get(0).asInt());
+            assertEquals(0, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).asInt());
         }
     }
 
@@ -475,7 +445,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(0, node.get("result").get("data").get(0).intValue());
+            assertEquals(0, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
         }
     }
 
@@ -493,7 +463,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(Instant.MAX, Instant.parse(node.get("result").get("data").get(0).asText()));
+            assertEquals(Instant.MAX, Instant.parse(node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).asText()));
         }
     }
 
@@ -511,7 +481,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(1, node.get("result").get("data").get(0).intValue());
+            assertEquals(1, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
         }
 
         final HttpGet httpget = new HttpGet(TestClientFactory.createURLString("?gremlin=g.V().count()"));
@@ -525,7 +495,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
                 assertEquals("application/json", response.getEntity().getContentType().getValue());
                 final String json = EntityUtils.toString(response.getEntity());
                 final JsonNode node = mapper.readTree(json);
-                assertEquals(1, node.get("result").get("data").get(0).intValue());
+                assertEquals(1, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
             }
         }
     }
@@ -545,7 +515,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(1, node.get("result").get("data").size());
+            assertEquals(1, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).size());
         }
 
         final CloseableHttpClient httpclient = HttpClients.createDefault();
@@ -558,7 +528,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(1, node.get("result").get("data").size());
+            assertEquals(1, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).size());
         }
     }
 
@@ -574,7 +544,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(6, node.get("result").get("data").size());
+            assertEquals(6, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).size());
         }
     }
 
@@ -591,13 +561,10 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode resultJson = mapper.readTree(json);
             final JsonNode data = resultJson.get("result").get("data");
-            assertEquals(1, data.size());
+            assertEquals(1, data.get(GraphSONTokens.VALUEPROP).size());
 
-            final List<JsonNode> vertices = data.get(0).findValues(GraphSONTokens.VERTICES);
-            final List<JsonNode> edges = data.get(0).findValues(GraphSONTokens.EDGES);
-
-            assertEquals(6, vertices.get(0).size());
-            assertEquals(6, edges.get(0).size());
+            assertEquals(6, data.get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).get(GraphSONTokens.VERTICES).size());
+            assertEquals(6, data.get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).get(GraphSONTokens.EDGES).size());
         }
     }
 
@@ -614,7 +581,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(6, node.get("result").get("data").size());
+            assertEquals(6, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).size());
         }
 
         final CloseableHttpClient httpclient = HttpClients.createDefault();
@@ -627,7 +594,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(6, node.get("result").get("data").size());
+            assertEquals(6, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).size());
         }
     }
 
@@ -643,7 +610,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(20, node.get("result").get("data").get(0).intValue());
+            assertEquals(20, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
         }
     }
 
@@ -659,7 +626,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(10, node.get("result").get("data").get(0).intValue());
+            assertEquals(10, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
         }
     }
 
@@ -675,7 +642,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(10.5d, node.get("result").get("data").get(0).doubleValue(), 0.0001);
+            assertEquals(10.5d, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).doubleValue(), 0.0001);
         }
     }
 
@@ -691,7 +658,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals("10", node.get("result").get("data").get(0).textValue());
+            assertEquals("10", node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).textValue());
         }
     }
 
@@ -707,7 +674,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(true, node.get("result").get("data").get(0).booleanValue());
+            assertEquals(true, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).booleanValue());
         }
     }
 
@@ -723,7 +690,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(true, node.get("result").get("data").get(0).isNull());
+            assertEquals(true, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).isNull());
         }
     }
 
@@ -739,10 +706,10 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(true, node.get("result").get("data").isArray());
-            assertEquals(1, node.get("result").get("data").get(0).intValue());
-            assertEquals(2, node.get("result").get("data").get(1).intValue());
-            assertEquals(3, node.get("result").get("data").get(2).intValue());
+            assertEquals(true, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).isArray());
+            assertEquals(1, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).intValue());
+            assertEquals(2, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(1).get(GraphSONTokens.VALUEPROP).intValue());
+            assertEquals(3, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(2).get(GraphSONTokens.VALUEPROP).intValue());
         }
     }
 
@@ -758,8 +725,8 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(true, node.get("result").get("data").get(0).isObject());
-            assertEquals(1, node.get("result").get("data").get(0).get("y").asInt());
+            assertEquals("g:Map", node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get("@type").asText());
+            assertEquals(1, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).get(1).get(GraphSONTokens.VALUEPROP).asInt());
         }
     }
 
@@ -813,7 +780,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(0, node.get("result").get("data").get(0).asInt());
+            assertEquals(0, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).asInt());
         }
     }
 
@@ -830,7 +797,7 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             assertEquals("application/json", response.getEntity().getContentType().getValue());
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
-            assertEquals(0, node.get("result").get("data").get(0).asInt());
+            assertEquals(0, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).asInt());
         }
     }
 
@@ -852,6 +819,21 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
     }
 
     @Test
+    public void should200OnPOSTWithGraphSON1d0AcceptHeaderDefaultResultToJson() throws Exception {
+        final CloseableHttpClient httpclient = HttpClients.createDefault();
+        final HttpPost httppost = new HttpPost(TestClientFactory.createURLString());
+        httppost.setEntity(new StringEntity("{\"gremlin\":\"1-1\"}", Consts.UTF_8));
+
+        try (final CloseableHttpResponse response = httpclient.execute(httppost)) {
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertEquals("application/json", response.getEntity().getContentType().getValue());
+            final String json = EntityUtils.toString(response.getEntity());
+            final JsonNode node = mapper.readTree(json);
+            assertEquals(0, node.get("result").get("data").get(0).asInt());
+        }
+    }
+
+    @Test
     public void should200OnPOSTWithGraphSON2d0AcceptHeaderDefaultResultToJson() throws Exception {
         final CloseableHttpClient httpclient = HttpClients.createDefault();
         final HttpPost httppost = new HttpPost(TestClientFactory.createURLString());
@@ -863,6 +845,21 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             final String json = EntityUtils.toString(response.getEntity());
             final JsonNode node = mapper.readTree(json);
             assertEquals(0, node.get("result").get("data").get(0).asInt());
+        }
+    }
+
+    @Test
+    public void should200OnPOSTWithGraphSON3d0AcceptHeaderDefaultResultToJson() throws Exception {
+        final CloseableHttpClient httpclient = HttpClients.createDefault();
+        final HttpPost httppost = new HttpPost(TestClientFactory.createURLString());
+        httppost.setEntity(new StringEntity("{\"gremlin\":\"1-1\"}", Consts.UTF_8));
+
+        try (final CloseableHttpResponse response = httpclient.execute(httppost)) {
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertEquals("application/json", response.getEntity().getContentType().getValue());
+            final String json = EntityUtils.toString(response.getEntity());
+            final JsonNode node = mapper.readTree(json);
+            assertEquals(0, node.get("result").get("data").get(GraphSONTokens.VALUEPROP).get(0).get(GraphSONTokens.VALUEPROP).asInt());
         }
     }
 }

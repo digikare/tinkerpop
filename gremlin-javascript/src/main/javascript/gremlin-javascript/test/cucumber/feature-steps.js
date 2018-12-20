@@ -30,13 +30,14 @@ const graphModule = require('../../lib/structure/graph');
 const graphTraversalModule = require('../../lib/process/graph-traversal');
 const traversalModule = require('../../lib/process/traversal');
 const utils = require('../../lib/utils');
-const Graph = graphModule.Graph;
+const traversal = require('../../lib/process/anonymous-traversal').traversal;
 const Path = graphModule.Path;
 const __ = graphTraversalModule.statics;
+const t = traversalModule.t;
 
 // Determines whether the feature maps (m[]), are deserialized as objects (true) or maps (false).
 // Use false for GraphSON3.
-const mapAsObject = true;
+const mapAsObject = false;
 
 const parsers = [
   [ 'd\\[([\\d.]+)\\]\\.[ilfdm]', toNumeric ],
@@ -50,7 +51,8 @@ const parsers = [
   [ 'l\\[(.*)\\]', toArray ],
   [ 's\\[(.*)\\]', toArray ],
   [ 'm\\[(.+)\\]', toMap ],
-  [ 'c\\[(.+)\\]', toLambda ]
+  [ 'c\\[(.+)\\]', toLambda ],
+  [ 't\\[(.+)\\]', toT ]
 ].map(x => [ new RegExp('^' + x[0] + '$'), x[1] ]);
 
 const ignoreReason = {
@@ -65,9 +67,9 @@ const ignoredScenarios = {
   'g_V_outXcreatedX_pageRank_byXbothEX_byXprojectRankX_timesX0X_valueMapXname_projectRankX': new IgnoreError(ignoreReason.computerNotSupported),
   'g_V_pageRank_order_byXpageRank_decrX_byXnameX_name': new IgnoreError(ignoreReason.computerNotSupported),
   'g_V_pageRank_order_byXpageRank_decrX_name_limitX2X': new IgnoreError(ignoreReason.computerNotSupported),
-  'g_V_pageRank_byXoutEXknowsXX_byXfriendRankX_valueMapXname_friendRankX': new IgnoreError(ignoreReason.computerNotSupported),
-  'g_V_hasLabelXpersonX_pageRank_byXpageRankX_order_byXpageRankX_valueMapXname_pageRankX': new IgnoreError(ignoreReason.computerNotSupported),
-  'g_V_pageRank_byXpageRankX_asXaX_outXknowsX_pageRank_asXbX_selectXa_bX': new IgnoreError(ignoreReason.computerNotSupported),
+  'g_V_pageRank_byXoutEXknowsXX_byXfriendRankX_project_byXnameX_byXvaluesXfriendRankX_mathX': new IgnoreError(ignoreReason.computerNotSupported),
+  'g_V_hasLabelXpersonX_pageRank_byXpageRankX_project_byXnameX_byXvaluesXpageRankX_mathX': new IgnoreError(ignoreReason.computerNotSupported),
+  'g_V_pageRank_byXpageRankX_asXaX_outXknowsX_pageRank_asXbX_selectXa_bX_by_byXmathX': new IgnoreError(ignoreReason.computerNotSupported),
   'g_V_hasLabelXsoftwareX_hasXname_rippleX_pageRankX1X_byXinEXcreatedXX_timesX1X_byXpriorsX_inXcreatedX_unionXboth__identityX_valueMapXname_priorsX': new IgnoreError(ignoreReason.computerNotSupported),
   'g_V_outXcreatedX_groupXmX_byXlabelX_pageRankX1X_byXpageRankX_byXinEX_timesX1X_inXcreatedX_groupXmX_byXpageRankX_capXmX': new IgnoreError(ignoreReason.computerNotSupported),
   'g_V_peerPressure_hasXclusterX': new IgnoreError(ignoreReason.computerNotSupported),
@@ -82,7 +84,7 @@ defineSupportCode(function(methods) {
     }
     this.graphName = graphName;
     const data = this.getData();
-    this.g = new Graph().traversal().withRemote(data.connection);
+    this.g = traversal().withRemote(data.connection);
     if (graphName === 'empty') {
       return this.cleanEmptyGraph();
     }
@@ -243,7 +245,7 @@ function toNumeric(stringValue) {
 }
 
 function toVertex(name) {
-  return this.getData().vertices[name];
+  return this.getData().vertices.get(name);
 }
 
 function toVertexId(name) {
@@ -275,6 +277,10 @@ function toPath(value) {
   return new Path(new Array(0), parts.map(x => parseValue.call(this, x)));
 }
 
+function toT(value) {
+  return t[value];
+}
+
 function toArray(stringList) {
   if (stringList === '') {
     return new Array(0);
@@ -299,13 +305,13 @@ function parseMapValue(value) {
   if (mapAsObject) {
     const result = {};
     Object.keys(value).forEach(key => {
-      result[key] = parseMapValue.call(this, value[key]);
+      result[parseMapValue.call(this, key)] = parseMapValue.call(this, value[key]);
     });
     return result;
   }
   const map = new Map();
   Object.keys(value).forEach(key => {
-    map.set(key, parseMapValue.call(this, value[key]));
+    map.set(parseMapValue.call(this, key), parseMapValue.call(this, value[key]));
   });
   return map;
 }

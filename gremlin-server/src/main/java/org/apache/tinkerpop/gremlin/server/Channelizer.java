@@ -19,7 +19,6 @@
 package org.apache.tinkerpop.gremlin.server;
 
 import io.netty.channel.ChannelHandler;
-import io.netty.channel.EventLoopGroup;
 import org.apache.tinkerpop.gremlin.server.util.ServerGremlinExecutor;
 
 /**
@@ -35,7 +34,7 @@ public interface Channelizer extends ChannelHandler {
     /**
      * This method is called just after the {@code Channelizer} is initialized.
      */
-    public void init(final ServerGremlinExecutor<EventLoopGroup> serverGremlinExecutor);
+    public void init(final ServerGremlinExecutor serverGremlinExecutor);
 
     /**
      * Create a message to send to seemingly dead clients to see if they respond back. The message sent will be

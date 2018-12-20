@@ -35,6 +35,16 @@ namespace Gremlin.Net.Driver
     /// </summary>
     public class GremlinClient : IGremlinClient
     {
+        /// <summary>
+        /// Defines the default mime type to use.
+        /// </summary>
+        public const string DefaultMimeType = "application/vnd.gremlin-v3.0+json";
+
+        /// <summary>
+        /// The GraphSON2 mime type to use.
+        /// </summary>
+        public const string GraphSON2MimeType = "application/vnd.gremlin-v2.0+json";
+        
         private readonly ConnectionPool _connectionPool;
 
         /// <summary>
@@ -43,16 +53,19 @@ namespace Gremlin.Net.Driver
         /// <param name="gremlinServer">The <see cref="GremlinServer" /> the requests should be sent to.</param>
         /// <param name="graphSONReader">A <see cref="GraphSONReader" /> instance to read received GraphSON data.</param>
         /// <param name="graphSONWriter">a <see cref="GraphSONWriter" /> instance to write GraphSON data.</param>
+        /// <param name="mimeType">The GraphSON version mime type, defaults to latest supported by the server.</param>
         /// <param name="webSocketConfiguration">
         ///     A delegate that will be invoked with the <see cref="ClientWebSocketOptions" />
         ///     object used to configure WebSocket connections.
         /// </param>
         public GremlinClient(GremlinServer gremlinServer, GraphSONReader graphSONReader = null,
-            GraphSONWriter graphSONWriter = null, Action<ClientWebSocketOptions> webSocketConfiguration = null)
+            GraphSONWriter graphSONWriter = null, string mimeType = null,
+            Action<ClientWebSocketOptions> webSocketConfiguration = null)
         {
-            var reader = graphSONReader ?? new GraphSONReader();
-            var writer = graphSONWriter ?? new GraphSONWriter();
-            var connectionFactory = new ConnectionFactory(gremlinServer, reader, writer, webSocketConfiguration);
+            var reader = graphSONReader ?? new GraphSON3Reader();
+            var writer = graphSONWriter ?? new GraphSON3Writer();
+            var connectionFactory = new ConnectionFactory(gremlinServer, reader, writer, mimeType ?? DefaultMimeType,
+                webSocketConfiguration);
             _connectionPool = new ConnectionPool(connectionFactory);
         }
 

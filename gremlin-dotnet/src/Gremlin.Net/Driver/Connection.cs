@@ -37,20 +37,21 @@ namespace Gremlin.Net.Driver
     {
         private readonly GraphSONReader _graphSONReader;
         private readonly GraphSONWriter _graphSONWriter;
-        private readonly JsonMessageSerializer _messageSerializer = new JsonMessageSerializer();
+        private readonly JsonMessageSerializer _messageSerializer;
         private readonly Uri _uri;
         private readonly WebSocketConnection _webSocketConnection;
         private readonly string _username;
         private readonly string _password;
 
         public Connection(Uri uri, string username, string password, GraphSONReader graphSONReader,
-            GraphSONWriter graphSONWriter, Action<ClientWebSocketOptions> webSocketConfiguration)
+            GraphSONWriter graphSONWriter, string mimeType, Action<ClientWebSocketOptions> webSocketConfiguration)
         {
             _uri = uri;
             _username = username;
             _password = password;
             _graphSONReader = graphSONReader;
             _graphSONWriter = graphSONWriter;
+            _messageSerializer = new JsonMessageSerializer(mimeType);
             _webSocketConnection = new WebSocketConnection(webSocketConfiguration);
         }
 
@@ -99,7 +100,10 @@ namespace Gremlin.Net.Driver
                 }
                 else if (status.Code != ResponseStatusCode.NoContent)
                 {
-                    var receivedData = _graphSONReader.ToObject(receivedMsg.Result.Data);
+                    var receivedData = typeof(T) == typeof(JToken)
+                        ? new[] { receivedMsg.Result.Data }
+                        : _graphSONReader.ToObject(receivedMsg.Result.Data);
+
                     foreach (var d in receivedData)
                         if (receivedMsg.Result.Meta.ContainsKey(Tokens.ArgsSideEffectKey))
                         {

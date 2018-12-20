@@ -59,9 +59,35 @@ public class PropertyTest {
     public static class BasicPropertyTest extends AbstractGremlinTest {
         @Test
         @FeatureRequirementSet(FeatureRequirementSet.Package.VERTICES_ONLY)
-        public void shouldHaveStandardStringRepresentation() {
+        public void shouldHaveStandardStringRepresentationForVertexProperty() {
             final Vertex v = graph.addVertex("name", "marko");
             final Property p = v.property("name");
+            assertEquals(StringFactory.propertyString(p), p.toString());
+        }
+
+        @Test
+        @FeatureRequirementSet(FeatureRequirementSet.Package.VERTICES_ONLY)
+        public void shouldHaveTruncatedStringRepresentationForVertexProperty() {
+            final Vertex v = graph.addVertex("name", "maria de la santa cruz rosalina agnelia rodriguez cuellar rene");
+            final Property p = v.property("name");
+            assertEquals(StringFactory.propertyString(p), p.toString());
+        }
+
+        @Test
+        @FeatureRequirementSet(FeatureRequirementSet.Package.SIMPLE)
+        public void shouldHaveStandardStringRepresentationForEdgeProperty() {
+            final Vertex v = graph.addVertex();
+            final Edge e = v.addEdge("self", v, "short", "s");
+            final Property p = e.property("short");
+            assertEquals(StringFactory.propertyString(p), p.toString());
+        }
+
+        @Test
+        @FeatureRequirementSet(FeatureRequirementSet.Package.SIMPLE)
+        public void shouldHaveTruncatedStringRepresentationForEdgeProperty() {
+            final Vertex v = graph.addVertex();
+            final Edge e = v.addEdge("self", v, "long", "s");
+            final Property p = e.property("long", "this is a really long property to truncate");
             assertEquals(StringFactory.propertyString(p), p.toString());
         }
 
@@ -340,7 +366,7 @@ public class PropertyTest {
                     {PropertyFeatures.FEATURE_LONG_VALUES, -10000l},
                     {PropertyFeatures.FEATURE_MAP_VALUES, testMap},
                     {PropertyFeatures.FEATURE_MIXED_LIST_VALUES, mixedList},
-                    {PropertyFeatures.FEATURE_STRING_ARRAY_VALUES, new boolean[]{true, false}},
+                    {PropertyFeatures.FEATURE_BOOLEAN_ARRAY_VALUES, new boolean[]{true, false}},
                     {PropertyFeatures.FEATURE_DOUBLE_ARRAY_VALUES, new double[]{1d, 2d}},
                     {PropertyFeatures.FEATURE_FLOAT_ARRAY_VALUES, new float[]{1f, 2f}},
                     {PropertyFeatures.FEATURE_INTEGER_ARRAY_VALUES, new int[]{1, 2}},

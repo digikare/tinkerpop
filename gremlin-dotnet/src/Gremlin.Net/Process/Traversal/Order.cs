@@ -22,6 +22,9 @@
 #endregion
 
 // THIS IS A GENERATED FILE - DO NOT MODIFY THIS FILE DIRECTLY - see pom.xml
+using System;
+using System.Collections.Generic;
+
 namespace Gremlin.Net.Process.Traversal
 {
 #pragma warning disable 1591
@@ -30,17 +33,41 @@ namespace Gremlin.Net.Process.Traversal
     {
         private Order(string enumValue)
             : base("Order", enumValue)
-        {            
+        {
         }
- 
-        public static Order Decr => new Order("decr"); 
-        public static Order Incr => new Order("incr"); 
-        public static Order KeyDecr => new Order("keyDecr"); 
-        public static Order KeyIncr => new Order("keyIncr"); 
-        public static Order Shuffle => new Order("shuffle"); 
-        public static Order ValueDecr => new Order("valueDecr"); 
-        public static Order ValueIncr => new Order("valueIncr");
+
+        public static Order Asc => new Order("asc");
+
+        public static Order Decr => new Order("decr");
+
+        public static Order Desc => new Order("desc");
+
+        public static Order Incr => new Order("incr");
+
+        public static Order Shuffle => new Order("shuffle");
+
+        private static readonly IDictionary<string, Order> Properties = new Dictionary<string, Order>
+        {
+            { "asc", Asc },
+            { "decr", Decr },
+            { "desc", Desc },
+            { "incr", Incr },
+            { "shuffle", Shuffle },
+        };
+
+        /// <summary>
+        /// Gets the Order enumeration by value.
+        /// </summary>
+        public static Order GetByValue(string value)
+        {
+            if (!Properties.TryGetValue(value, out var property))
+            {
+                throw new ArgumentException($"No matching Order for value '{value}'");
+            }
+            return property;
+        }
     }
-    
+
+
 #pragma warning restore 1591
 }

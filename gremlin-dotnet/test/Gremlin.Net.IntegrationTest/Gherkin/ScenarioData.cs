@@ -25,22 +25,19 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Gremlin.Net.Driver.Exceptions;
 using Gremlin.Net.IntegrationTest.Process.Traversal.DriverRemoteConnection;
 using Gremlin.Net.Process.Remote;
 using Gremlin.Net.Process.Traversal;
 using Gremlin.Net.Structure;
 
+using static Gremlin.Net.Process.Traversal.AnonymousTraversalSource;
+
 namespace Gremlin.Net.IntegrationTest.Gherkin
 {
     internal class ScenarioData
     {
         private static readonly Lazy<ScenarioData> Lazy = new Lazy<ScenarioData>(Load);
-        
-        private static readonly Regex EdgeORegex = new Regex("o=(.+?)[,}]", RegexOptions.Compiled);
-        private static readonly Regex EdgeLRegex = new Regex("l=(.+?)[,}]", RegexOptions.Compiled);
-        private static readonly Regex EdgeIRegex = new Regex("i=(.+?)[,}]", RegexOptions.Compiled);
         
         private static readonly string[] GraphNames = {"modern", "classic", "crew", "grateful", "sink"};
 
@@ -73,14 +70,14 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
 
         public static void CleanEmptyData()
         {
-            var g = new Graph().Traversal().WithRemote(GetByGraphName("empty").Connection);
+            var g = Traversal().WithRemote(GetByGraphName("empty").Connection);
             g.V().Drop().Iterate();
         }
 
         public static void ReloadEmptyData()
         {
             var graphData = Lazy.Value._dataPerGraph["empty"];
-            var g = new Graph().Traversal().WithRemote(graphData.Connection);
+            var g = Traversal().WithRemote(graphData.Connection);
             graphData.Vertices = GetVertices(g);
             graphData.Edges = GetEdges(g);
         }
@@ -100,7 +97,7 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             return new ScenarioData(GraphNames.Select(name =>
             {
                 var connection = ConnectionFactory.CreateRemoteConnection($"g{name}");
-                var g = new Graph().Traversal().WithRemote(connection);
+                var g = Traversal().WithRemote(connection);
                 return new ScenarioDataPerGraph(name, connection, GetVertices(g), GetEdges(g));
             }).ToDictionary(x => x.Name));
         }
@@ -123,26 +120,19 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
         {
             try
             {
-                return g.E().Group<string, object>()
-                    .By(__.Project<Edge>("o", "l", "i")
-                        .By(__.OutV().Values<string>("name")).By(__.Label()).By(__.InV().Values<string>("name")))
+                IFunction lambda = Lambda.Groovy(
+                    "it.outVertex().value('name') + '-' + it.label() + '->' + it.inVertex().value('name')");
+
+                return g.E().Group<string, Edge>()
+                    .By(lambda)
                     .By(__.Tail<object>())
-                    .Next()
-                    .ToDictionary(kv => GetEdgeKey(kv.Key), kv => (Edge)kv.Value);
+                    .Next();
             }
             catch (ResponseException)
             {
                 // Property name might not exist
                 return EmptyEdges;
             }
-        }
-
-        private static string GetEdgeKey(string key)
-        {
-            var o = EdgeORegex.Match(key).Groups[1].Value;
-            var l = EdgeLRegex.Match(key).Groups[1].Value;
-            var i = EdgeIRegex.Match(key).Groups[1].Value;
-            return o + "-" + l + "->" + i;
         }
     }
 

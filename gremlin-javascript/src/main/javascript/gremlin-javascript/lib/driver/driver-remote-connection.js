@@ -22,26 +22,18 @@
  */
 'use strict';
 
-const WebSocket = require('ws');
-const util = require('util');
-const t = require('../process/traversal');
-const RemoteConnection = require('./remote-connection').RemoteConnection;
-const utils = require('../utils');
-const serializer = require('../structure/io/graph-serializer');
-const responseStatusCode = {
-  success: 200,
-  noContent: 204,
-  partialContent: 206,
-  authenticationChallenge:  407,
-};
-const defaultMimeType = 'application/vnd.gremlin-v2.0+json';
+const rcModule = require('./remote-connection');
+const RemoteConnection = rcModule.RemoteConnection;
+const RemoteTraversal = rcModule.RemoteTraversal;
+const Client = require('./client');
 
-const pingIntervalDelay = 60 * 1000;
-const pongTimeoutDelay = 30 * 1000;
-
+/**
+ * Represents the default {@link RemoteConnection} implementation.
+ */
 class DriverRemoteConnection extends RemoteConnection {
+
   /**
-   * Creates a new instance of DriverRemoteConnection.
+   * Creates a new instance of {@link DriverRemoteConnection}.
    * @param {String} url The resource uri.
    * @param {Object} [options] The connection options.
    * @param {Array} [options.ca] Trusted certificates.
@@ -63,308 +55,23 @@ class DriverRemoteConnection extends RemoteConnection {
    */
   constructor(url, options) {
     super(url);
-    this.options = options || {};
-    // A map containing the request id and the handler
-    this._responseHandlers = {};
-    this._reader = this.options.reader || new serializer.GraphSONReader();
-    this._writer = this.options.writer || new serializer.GraphSONWriter();
-    this._openPromise = null;
-    this._openCallback = null;
-    this._closePromise = null;
-    this._closeCallback = null;
-    this._pingInterval = null;
-    this._pongTimeout = null;
-    const mimeType = this.options.mimeType || defaultMimeType;
-    this._header = String.fromCharCode(mimeType.length) + mimeType;
-    this.isOpen = false;
-    this.traversalSource = this.options.traversalSource || 'g';
-
-    this._timeoutAutoReconnectionInterval = 500;
-
-    this._pingEnabled = this.options.pingEnabled === false ? false : true;
-    this._pingIntervalDelay = this.options.pingInterval && this.options.pingInterval > 0 ? this.options.pingInterval : pingIntervalDelay;
-    this._pongTimeoutDelay = this.options.pongTimeout && this.options.pongTimeout > 0 ? this.options.pongTimeout : pongTimeoutDelay;
-
-    if (options.authenticator) {
-      this._authenticator = options.authenticator;
-    }
-
-    if (this.options.connectOnStartup !== false) {
-      this.open();
-    }
-  }
-
-  /**
-   * Opens the connection, if its not already opened.
-   * @returns {Promise}
-   */
-  open() {
-    if (this.isOpen) {
-      return Promise.resolve();
-    }
-    if (this._openPromise) {
-      return this._openPromise;
-    }
-
-    this._ws = new WebSocket(this.url, {
-      headers: this.options.headers,
-      ca: this.options.ca,
-      cert: this.options.cert,
-      pfx: this.options.pfx,
-      rejectUnauthorized: this.options.rejectUnauthorized
-    });
-    this._ws.on('message', (data) => this._handleMessage(data));
-    this._ws.on('error', (err) => this._handleError(err));
-    this._ws.on('close', (e) => this._handleClose(e));
-
-    this._ws.on('pong', () => {
-      if (this._pongTimeout) {
-        clearTimeout(this._pongTimeout);
-        this._pongTimeout = null;
-      }
-    });
-
-    this._ws.on('ping', () => {
-      this._ws.pong();
-    });
-    return this._openPromise = new Promise((resolve, reject) => {
-      this._ws.on('open', () => {
-        this.isOpen = true;
-        this._pingHeartbeat();
-        resolve();
-      });
-    });
+    this._client = new Client(url, options);
   }
 
   /** @override */
-  submit(bytecode, op, args, requestId, processor) {
-    return this.open().then(() => new Promise((resolve, reject) => {
-      if (requestId === null || requestId === undefined) {
-        requestId = utils.getUuid();
-        this._responseHandlers[requestId] = {
-          callback: (err, result) => err ? reject(err) : resolve(result),
-          result: null
-        };
-      }
-
-      const message = bufferFromString(this._header + JSON.stringify(this._getRequest(requestId, bytecode, op, args, processor)));
-      this._ws.send(message);
-    }));
+  open() {
+    return this._client.open();
   }
 
-  _getRequest(id, bytecode, op, args, processor) {
-    if (args) {
-      args = this._adaptArgs(args, true);
-    }
-
-    return ({
-      'requestId': { '@type': 'g:UUID', '@value': id },
-      'op': op || 'bytecode',
-      // if using op eval need to ensure processor stays unset if caller didn't set it.
-      'processor': (!processor && op !== 'eval') ? 'traversal' : processor,
-      'args': args || {
-        'gremlin': this._writer.adaptObject(bytecode),
-        'aliases': { 'g': this.traversalSource }
-      }
-    });
+  /** @override */
+  submit(bytecode) {
+    return this._client.submit(bytecode).then(result => new RemoteTraversal(result.toArray()));
   }
 
-  _pingHeartbeat() {
-
-    // if disabled
-    if (this._pingEnabled === false) {
-      return ;
-    }
-
-    if (this._pingInterval) {
-      clearTimeout(this._pingInterval);
-      this._pingInterval = null;
-    }
-
-    this._pingInterval = setInterval(() => {
-      if (this.isOpen === false) {
-        if (this._pingInterval) {
-          clearInterval(this._pingInterval);
-          this._pingInterval = null;
-        }
-        return ;
-      }
-      // setup timeout for pong
-      this._pongTimeout = setTimeout(() => {
-        this._ws.terminate();
-      }, this._pongTimeoutDelay);
-
-      this._ws.ping();
-
-    }, this._pingIntervalDelay);
-  }
-
-  _handleError(err) {
-    this._cleanupWebsocket();
-    switch (err.code) {
-      case 'ECONNREFUSED':
-        this._reconnect(err);
-        break;
-      default:
-        throw err;
-        break;
-    }
-  }
-
-  _handleClose(e) {
-    this._cleanupWebsocket();
-
-    switch (e.code) {
-      case 1000: // close normal
-        if (this._closeCallback) {
-          this._closeCallback();
-        }
-        break;
-      default: // not close normally, reconnect
-        if (this.options.autoReconnect !== false) {
-          this._reconnect(e);
-        }
-        break;
-    }
-  }
-
-  _handleMessage(data) {
-    const response = this._reader.read(JSON.parse(data.toString()));
-    if (response.requestId === null || response.requestId === undefined) {
-        // There was a serialization issue on the server that prevented the parsing of the request id
-        // We invoke any of the pending handlers with an error
-        Object.keys(this._responseHandlers).forEach(requestId => {
-          const handler = this._responseHandlers[requestId];
-          this._clearHandler(requestId);
-          if (response.status !== undefined && response.status.message) {
-            return handler.callback(
-              new Error(util.format(
-                'Server error (no request information): %s (%d)', response.status.message, response.status.code)));
-          } else {
-            return handler.callback(new Error(util.format('Server error (no request information): %j', response)));
-          }
-        });
-        return;
-    }
-
-    const handler = this._responseHandlers[response.requestId];
-
-    if (!handler) {
-      // The handler for a given request id was not found
-      // It was probably invoked earlier due to a serialization issue.
-      return;
-    }
-
-    if (response.status.code === responseStatusCode.authenticationChallenge && this._authenticator) {
-      this._authenticator.evaluateChallenge(response.result.data).then(res => {
-        return this.submit(null, 'authentication', res, response.requestId);
-      }).catch(handler.callback);
-
-      return;
-    }
-    else if (response.status.code >= 400) {
-      // callback in error
-      return handler.callback(
-        new Error(util.format('Server error: %s (%d)', response.status.message, response.status.code)));
-    }
-    switch (response.status.code) {
-      case responseStatusCode.noContent:
-        this._clearHandler(response.requestId);
-        return handler.callback(null, { traversers: []});
-      case responseStatusCode.partialContent:
-        handler.result = handler.result || [];
-        handler.result.push.apply(handler.result, response.result.data);
-        break;
-      default:
-        if (handler.result) {
-          handler.result.push.apply(handler.result, response.result.data);
-        }
-        else {
-          handler.result = response.result.data;
-        }
-        this._clearHandler(response.requestId);
-        return handler.callback(null, { traversers: handler.result });
-    }
-  }
-
-  /**
-   * clean websocket context
-   */
-  _cleanupWebsocket() {
-    if (this._pingInterval) {
-      clearInterval(this._pingInterval);
-    }
-    this._pingInterval = null;
-    if (this._pongTimeout) {
-      clearTimeout(this._pongTimeout);
-    }
-    this._pongTimeout = null;
-
-    this._ws.removeAllListeners();
-    this._openPromise = null;
-    this.isOpen = false;
-  }
-
-  /**
-   * reconnect websocket
-   */
-  _reconnect() {
-    setTimeout(() => {
-      this.open();
-    }, this._timeoutAutoReconnectionInterval)
-  }
-
-  /**
-   * Clears the internal state containing the callback and result buffer of a given request.
-   * @param requestId
-   * @private
-   */
-  _clearHandler(requestId) {
-    delete this._responseHandlers[requestId];
-  }
-
-  /**
-   * Takes the given args map and ensures all arguments are passed through to _write.adaptObject
-   * @param {Object} args Map of arguments to process
-   * @returns {Object}
-   * @private
-   */
-  _adaptArgs(args, protocolLevel) {
-    if (args instanceof Object) {
-      let newObj = {};
-      Object.keys(args).forEach((key) => {
-        // bindings key (at the protocol-level needs special handling. without this, it wraps the generated Map
-        // in another map for types like EnumValue. Could be a nicer way to do this but for now it's solving the
-        // problem with script submission of non JSON native types
-        if (protocolLevel && key === 'bindings')
-          newObj[key] = this._adaptArgs(args[key], false);
-        else
-          newObj[key] = this._writer.adaptObject(args[key]);
-      });
-
-      return newObj;
-    }
-
-    return args;
-  }
-
-  /**
-   * Closes the Connection.
-   * @return {Promise}
-   */
+  /** @override */
   close() {
-    if (!this._closePromise) {
-      this._closePromise = new Promise(resolve => {
-        this._closeCallback = resolve;
-        this._ws.close();
-      });
-    }
-    return this._closePromise;
+    return this._client.close();
   }
 }
-
-const bufferFromString = (Int8Array.from !== Buffer.from && Buffer.from) || function newBuffer(text) {
-  return new Buffer(text, 'utf8');
-};
 
 module.exports = DriverRemoteConnection;

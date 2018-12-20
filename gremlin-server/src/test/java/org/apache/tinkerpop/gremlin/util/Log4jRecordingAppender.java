@@ -19,6 +19,7 @@
 package org.apache.tinkerpop.gremlin.util;
 
 import org.apache.log4j.AppenderSkeleton;
+import org.apache.log4j.Level;
 import org.apache.log4j.PatternLayout;
 import org.apache.log4j.spi.LoggingEvent;
 
@@ -32,6 +33,7 @@ import java.util.List;
  */
 public class Log4jRecordingAppender extends AppenderSkeleton {
     private final List<String> messages = new ArrayList<>();
+    private final List<LoggingEvent> events = new ArrayList<>();
 
     public Log4jRecordingAppender() {
         super();
@@ -41,6 +43,7 @@ public class Log4jRecordingAppender extends AppenderSkeleton {
     @Override
     protected void append(final LoggingEvent event) {
         messages.add(layout.format(event));
+        events.add(event);
     }
 
     @Override
@@ -52,9 +55,9 @@ public class Log4jRecordingAppender extends AppenderSkeleton {
         return true;
     }
 
-    public List<String> getMessages() {
-        return messages;
-    }
+    public List<String> getMessages() { return messages; }
+
+    public List<LoggingEvent> getEvents() { return events; }
 
     public void clear() {
         messages.clear();
@@ -63,5 +66,14 @@ public class Log4jRecordingAppender extends AppenderSkeleton {
     public boolean logContainsAny(final String regex) {
         // chop off the line feed so that the regex doesn't have to account for that
         return messages.stream().anyMatch(m -> m.substring(0,m.length() - 1).matches(regex));
+    }
+
+    public boolean logContainsAny(final String loggerName, final Level level, final String fragment) {
+        return events.stream().anyMatch(m -> m.getLoggerName().equals(loggerName) &&
+                m.getLevel().equals(level) && m.getMessage().toString().contains(fragment));
+    }
+    public boolean logMatchesAny(final String loggerName, final Level level, final String regex) {
+        return events.stream().anyMatch(m -> m.getLoggerName().equals(loggerName) &&
+                m.getLevel().equals(level) && m.getMessage().toString().matches(regex));
     }
 }

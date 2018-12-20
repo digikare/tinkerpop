@@ -18,43 +18,36 @@
  */
 package org.apache.tinkerpop.gremlin.server.auth;
 
-import org.apache.tinkerpop.gremlin.groovy.jsr223.dsl.credential.CredentialGraph;
+import org.apache.tinkerpop.gremlin.groovy.jsr223.dsl.credential.CredentialTraversal;
+import org.apache.tinkerpop.gremlin.groovy.jsr223.dsl.credential.CredentialTraversalDsl;
+import org.apache.tinkerpop.gremlin.groovy.jsr223.dsl.credential.CredentialTraversalSource;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
-import org.apache.tinkerpop.gremlin.structure.io.IoCore;
 import org.apache.tinkerpop.gremlin.structure.util.GraphFactory;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
 import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.apache.tinkerpop.gremlin.groovy.plugin.dsl.credential.CredentialGraphTokens.PROPERTY_PASSWORD;
-import static org.apache.tinkerpop.gremlin.groovy.plugin.dsl.credential.CredentialGraphTokens.PROPERTY_USERNAME;
+import static org.apache.tinkerpop.gremlin.groovy.jsr223.dsl.credential.CredentialGraphTokens.PROPERTY_PASSWORD;
+import static org.apache.tinkerpop.gremlin.groovy.jsr223.dsl.credential.CredentialGraphTokens.PROPERTY_USERNAME;
 
 /**
  * A simple implementation of an {@link Authenticator} that uses a {@link Graph} instance as a credential store.
- * Management of the credential store can be handled through the {@link CredentialGraph} DSL.
+ * Management of the credential store can be handled through the {@link CredentialTraversalDsl} DSL.
  *
  * @author Stephen Mallette (http://stephen.genoprime.com)
  */
 public class SimpleAuthenticator implements Authenticator {
     private static final Logger logger = LoggerFactory.getLogger(SimpleAuthenticator.class);
     private static final byte NUL = 0;
-    private CredentialGraph credentialStore;
-
-    /**
-     * @deprecated As of release 3.1.1-incubating, if using TinkerGraph, simply rely on it's "persistence" features.
-     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-981">TINKERPOP-981</a>
-     */
-    @Deprecated
-    public static final String CONFIG_CREDENTIALS_LOCATION = "credentialsDbLocation";
+    private CredentialTraversalSource credentialStore;
 
     /**
      * The location of the configuration file that contains the credentials database.
@@ -87,33 +80,14 @@ public class SimpleAuthenticator implements Authenticator {
             // have to create the indices because they are not stored in gryo
             final TinkerGraph tinkerGraph = (TinkerGraph) graph;
             tinkerGraph.createIndex(PROPERTY_USERNAME, Vertex.class);
-
-            // we deprecated credentialsLocation, but we still need to support it.  if it is present as a key, we can
-            // load the data as we always did.
-            if (config.containsKey(CONFIG_CREDENTIALS_LOCATION)) {
-                logger.warn("Using {} configuration option which is deprecated - prefer including the location of the credentials graph data in the TinkerGraph config file.");
-                final String location = (String) config.get(CONFIG_CREDENTIALS_LOCATION);
-                try {
-                    tinkerGraph.io(IoCore.gryo()).readGraph(location);
-                } catch (IOException e) {
-                    logger.warn("Could not read credentials graph from {} - authentication is enabled, but with an empty user database", location);
-                }
-            }
         }
 
-        credentialStore = CredentialGraph.credentials(graph);
+        credentialStore = graph.traversal(CredentialTraversalSource.class);
         logger.info("CredentialGraph initialized at {}", credentialStore);
     }
 
-    /**
-     * @deprecated As of release 3.1.1-incubating, replaced by {@link #newSaslNegotiator(InetAddress)}.
-     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-995">TINKERPOP-995</a>
-     */
     @Override
-    @Deprecated
-    public SaslNegotiator newSaslNegotiator() {
-        // While this method is deprecated, it remains here to ensure backward compatibility with the old method. In
-        // this way the integration tests can continue to execute here
+    public SaslNegotiator newSaslNegotiator(final InetAddress remoteAddress) {
         return new PlainTextSaslAuthenticator();
     }
 
@@ -124,17 +98,15 @@ public class SimpleAuthenticator implements Authenticator {
 
         final String username = credentials.get(PROPERTY_USERNAME);
         final String password = credentials.get(PROPERTY_PASSWORD);
-        try {
-            user = credentialStore.findUser(username);
-        } catch (IllegalStateException ex) {
-            // typically thrown when there are multiple users with the same name in the credential store
-            logger.warn(ex.getMessage());
-            throw new AuthenticationException("Username and/or password are incorrect", ex);
-        } catch (Exception ex) {
-            throw new AuthenticationException("Username and/or password are incorrect", ex);
-        }
+        final CredentialTraversal<Vertex,Vertex> t = credentialStore.users(username);
+        if (!t.hasNext())
+            throw new AuthenticationException("Username and/or password are incorrect");
 
-        if (null == user)  throw new AuthenticationException("Username and/or password are incorrect");
+        user = t.next();
+        if (t.hasNext()) {
+            logger.warn("There is more than one user with the username [{}] - usernames must be unique", username);
+            throw new AuthenticationException("Username and/or password are incorrect");
+        }
 
         final String hash = user.value(PROPERTY_PASSWORD);
         if (!BCrypt.checkpw(password, hash))

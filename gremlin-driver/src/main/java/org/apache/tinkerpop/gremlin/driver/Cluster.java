@@ -31,10 +31,6 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
-import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
-import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONMapper;
-import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONVersion;
-import org.apache.tinkerpop.shaded.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -182,6 +178,7 @@ public final class Cluster {
 
         final Builder builder = new Builder(settings.hosts.get(0))
                 .port(settings.port)
+                .path(settings.path)
                 .enableSsl(settings.connectionPool.enableSsl)
                 .trustCertificateChainFile(settings.connectionPool.trustCertChainFile)
                 .keepAliveInterval(settings.connectionPool.keepAliveInterval)
@@ -199,7 +196,6 @@ public final class Cluster {
                 .nioPoolSize(settings.nioPoolSize)
                 .workerPoolSize(settings.workerPoolSize)
                 .reconnectInterval(settings.connectionPool.reconnectInterval)
-                .reconnectIntialDelay(settings.connectionPool.reconnectInitialDelay)
                 .resultIterationBatchSize(settings.connectionPool.resultIterationBatchSize)
                 .channelizer(settings.connectionPool.channelizer)
                 .maxContentLength(settings.connectionPool.maxContentLength)
@@ -295,6 +291,13 @@ public final class Cluster {
                 .filter(Host::isAvailable)
                 .map(Host::getHostUri)
                 .collect(Collectors.toList()));
+    }
+
+    /**
+     * Gets the path to the Gremlin service.
+     */
+    public String getPath() {
+        return manager.path;
     }
 
     /**
@@ -402,13 +405,6 @@ public final class Cluster {
      */
     public String getChannelizer() {
         return manager.connectionPoolSettings.channelizer;
-    }
-
-    /**
-     * Gets time in milliseconds to wait before attempting to reconnect to a dead host after it has been marked dead.
-     */
-    public int getReconnectIntialDelay() {
-        return manager.connectionPoolSettings.reconnectInitialDelay;
     }
 
     /**
@@ -558,7 +554,8 @@ public final class Cluster {
     public final static class Builder {
         private List<InetAddress> addresses = new ArrayList<>();
         private int port = 8182;
-        private MessageSerializer serializer = Serializers.GRYO_V1D0.simpleInstance();
+        private String path = "/gremlin";
+        private MessageSerializer serializer = Serializers.GRYO_V3D0.simpleInstance();
         private int nioPoolSize = Runtime.getRuntime().availableProcessors();
         private int workerPoolSize = Runtime.getRuntime().availableProcessors() * 2;
         private int minConnectionPoolSize = ConnectionPool.MIN_POOL_SIZE;
@@ -570,7 +567,6 @@ public final class Cluster {
         private int maxWaitForConnection = Connection.MAX_WAIT_FOR_CONNECTION;
         private int maxWaitForSessionClose = Connection.MAX_WAIT_FOR_SESSION_CLOSE;
         private int maxContentLength = Connection.MAX_CONTENT_LENGTH;
-        private int reconnectInitialDelay = Connection.RECONNECT_INITIAL_DELAY;
         private int reconnectInterval = Connection.RECONNECT_INTERVAL;
         private int resultIterationBatchSize = Connection.RESULT_ITERATION_BATCH_SIZE;
         private long keepAliveInterval = Connection.KEEP_ALIVE_INTERVAL;
@@ -619,9 +615,17 @@ public final class Cluster {
         }
 
         /**
-         * Set the {@link MessageSerializer} to use given its MIME type.  Note that setting this value this way
-         * will not allow specific configuration of the serializer itself.  If specific configuration is required
-         * please use {@link #serializer(MessageSerializer)}.
+         * The path to the Gremlin service on the host which is "/gremlin" by default.
+         */
+        public Builder path(final String path) {
+            this.path = path;
+            return this;
+        }
+
+        /**
+         * Set the {@link MessageSerializer} to use given the exact name of a {@link Serializers} enum.  Note that
+         * setting this value this way will not allow specific configuration of the serializer itself.  If specific
+         * configuration is required * please use {@link #serializer(MessageSerializer)}.
          */
         public Builder serializer(final String mimeType) {
             serializer = Serializers.valueOf(mimeType).simpleInstance();
@@ -911,17 +915,6 @@ public final class Cluster {
         }
 
         /**
-         * Time in milliseconds to wait before attempting to reconnect to a dead host after it has been marked dead.
-         *
-         * @deprecated As of release 3.2.3, the value of the initial delay is now the same as the {@link #reconnectInterval}.
-         */
-        @Deprecated
-        public Builder reconnectIntialDelay(final int initialDelay) {
-            this.reconnectInitialDelay = initialDelay;
-            return this;
-        }
-
-        /**
          * Time in milliseconds to wait between retries when attempting to reconnect to a dead host.
          */
         public Builder reconnectInterval(final int interval) {
@@ -1049,6 +1042,7 @@ public final class Cluster {
         private final int nioPoolSize;
         private final int workerPoolSize;
         private final int port;
+        private final String path;
 
         private final AtomicReference<CompletableFuture<Void>> closeFuture = new AtomicReference<>();
 
@@ -1071,7 +1065,6 @@ public final class Cluster {
             connectionPoolSettings.maxWaitForConnection = builder.maxWaitForConnection;
             connectionPoolSettings.maxWaitForSessionClose = builder.maxWaitForSessionClose;
             connectionPoolSettings.maxContentLength = builder.maxContentLength;
-            connectionPoolSettings.reconnectInitialDelay = builder.reconnectInitialDelay;
             connectionPoolSettings.reconnectInterval = builder.reconnectInterval;
             connectionPoolSettings.resultIterationBatchSize = builder.resultIterationBatchSize;
             connectionPoolSettings.enableSsl = builder.enableSsl;
@@ -1096,6 +1089,7 @@ public final class Cluster {
             nioPoolSize = builder.nioPoolSize;
             workerPoolSize = builder.workerPoolSize;
             port = builder.port;
+            path = builder.path;
 
             this.factory = new Factory(builder.nioPoolSize);
             this.serializer = builder.serializer;
@@ -1155,7 +1149,6 @@ public final class Cluster {
 
             if (builder.workerPoolSize < 1)
                 throw new IllegalArgumentException("workerPoolSize must be greater than zero");
-
         }
 
         synchronized void init() {

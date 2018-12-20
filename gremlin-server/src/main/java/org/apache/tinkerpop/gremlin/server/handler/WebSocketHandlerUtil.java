@@ -24,7 +24,8 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.UPGRADE;
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
 
 /**
- * A class to handle common WebSocket operations
+ * A class to handle common WebSocket operations.
+ *
  * @author Keith Lohnes lohnesk@gmail.com
  */
 final class WebSocketHandlerUtil {

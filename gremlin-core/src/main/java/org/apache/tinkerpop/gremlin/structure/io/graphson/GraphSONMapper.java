@@ -65,7 +65,6 @@ public class GraphSONMapper implements Mapper<ObjectMapper> {
     private final List<SimpleModule> customModules;
     private final boolean loadCustomSerializers;
     private final boolean normalize;
-    private final boolean embedTypes;
     private final GraphSONVersion version;
     private final TypeInfo typeInfo;
 
@@ -73,9 +72,12 @@ public class GraphSONMapper implements Mapper<ObjectMapper> {
         this.customModules = builder.customModules;
         this.loadCustomSerializers = builder.loadCustomModules;
         this.normalize = builder.normalize;
-        this.embedTypes = builder.embedTypes;
         this.version = builder.version;
-        this.typeInfo = builder.typeInfo;
+
+        if (null == builder.typeInfo)
+            this.typeInfo = builder.version == GraphSONVersion.V1_0 ? TypeInfo.NO_TYPES : TypeInfo.PARTIAL_TYPES;
+        else
+            this.typeInfo = builder.typeInfo;
     }
 
     @Override
@@ -87,52 +89,52 @@ public class GraphSONMapper implements Mapper<ObjectMapper> {
         om.registerModule(graphSONModule);
         customModules.forEach(om::registerModule);
 
-
         // plugin external serialization modules
         if (loadCustomSerializers)
             om.findAndRegisterModules();
 
+        // graphson 3.0 only allows type - there is no option to remove embedded types
+        if (version == GraphSONVersion.V3_0 && typeInfo == TypeInfo.NO_TYPES)
+            throw new IllegalStateException(String.format("GraphSON 3.0 does not support %s", TypeInfo.NO_TYPES));
 
-        if (version == GraphSONVersion.V1_0) {
-            if (embedTypes) {
+        if (version == GraphSONVersion.V3_0 || (version == GraphSONVersion.V2_0 && typeInfo != TypeInfo.NO_TYPES)) {
+            final GraphSONTypeIdResolver graphSONTypeIdResolver = new GraphSONTypeIdResolver();
+            final TypeResolverBuilder typer = new GraphSONTypeResolverBuilder(version)
+                    .typesEmbedding(getTypeInfo())
+                    .valuePropertyName(GraphSONTokens.VALUEPROP)
+                    .init(JsonTypeInfo.Id.CUSTOM, graphSONTypeIdResolver)
+                    .typeProperty(GraphSONTokens.VALUETYPE);
+
+            // Registers native Java types that are supported by Jackson
+            registerJavaBaseTypes(graphSONTypeIdResolver);
+
+            // Registers the GraphSON Module's types
+            graphSONModule.getTypeDefinitions().forEach(
+                    (targetClass, typeId) -> graphSONTypeIdResolver.addCustomType(
+                            String.format("%s:%s", graphSONModule.getTypeNamespace(), typeId), targetClass));
+
+            // Register types to typeResolver for the Custom modules
+            customModules.forEach(e -> {
+                if (e instanceof TinkerPopJacksonModule) {
+                    final TinkerPopJacksonModule mod = (TinkerPopJacksonModule) e;
+                    final Map<Class, String> moduleTypeDefinitions = mod.getTypeDefinitions();
+                    if (moduleTypeDefinitions != null) {
+                        if (mod.getTypeNamespace() == null || mod.getTypeNamespace().isEmpty())
+                            throw new IllegalStateException("Cannot specify a module for GraphSON 2.0 with type definitions but without a type Domain. " +
+                                    "If no specific type domain is required, use Gremlin's default domain, \"gremlin\" but there may be collisions.");
+
+                        moduleTypeDefinitions.forEach((targetClass, typeId) -> graphSONTypeIdResolver.addCustomType(
+                                        String.format("%s:%s", mod.getTypeNamespace(), typeId), targetClass));
+                    }
+                }
+            });
+            om.setDefaultTyping(typer);
+        } else if (version == GraphSONVersion.V1_0 || version == GraphSONVersion.V2_0) {
+            if (typeInfo == TypeInfo.PARTIAL_TYPES) {
                 final TypeResolverBuilder<?> typer = new StdTypeResolverBuilder()
                         .init(JsonTypeInfo.Id.CLASS, null)
                         .inclusion(JsonTypeInfo.As.PROPERTY)
                         .typeProperty(GraphSONTokens.CLASS);
-                om.setDefaultTyping(typer);
-            }
-        } else if (version == GraphSONVersion.V2_0) {
-            if (typeInfo != TypeInfo.NO_TYPES) {
-                final GraphSONTypeIdResolver graphSONTypeIdResolver = new GraphSONTypeIdResolver();
-                final TypeResolverBuilder typer = new GraphSONTypeResolverBuilder()
-                        .typesEmbedding(getTypeInfo())
-                        .valuePropertyName(GraphSONTokens.VALUEPROP)
-                        .init(JsonTypeInfo.Id.CUSTOM, graphSONTypeIdResolver)
-                        .typeProperty(GraphSONTokens.VALUETYPE);
-
-                // Registers native Java types that are supported by Jackson
-                registerJavaBaseTypes(graphSONTypeIdResolver);
-
-                // Registers the GraphSON Module's types
-                graphSONModule.getTypeDefinitions().forEach(
-                        (targetClass, typeId) -> graphSONTypeIdResolver.addCustomType(
-                                String.format("%s:%s", graphSONModule.getTypeNamespace(), typeId), targetClass));
-
-                // Register types to typeResolver for the Custom modules
-                customModules.forEach(e -> {
-                    if (e instanceof TinkerPopJacksonModule) {
-                        final TinkerPopJacksonModule mod = (TinkerPopJacksonModule) e;
-                        final Map<Class, String> moduleTypeDefinitions = mod.getTypeDefinitions();
-                        if (moduleTypeDefinitions != null) {
-                            if (mod.getTypeNamespace() == null || mod.getTypeNamespace().isEmpty())
-                                throw new IllegalStateException("Cannot specify a module for GraphSON 2.0 with type definitions but without a type Domain. " +
-                                        "If no specific type domain is required, use Gremlin's default domain, \"gremlin\" but there may be collisions.");
-
-                            moduleTypeDefinitions.forEach((targetClass, typeId) -> graphSONTypeIdResolver.addCustomType(
-                                            String.format("%s:%s", mod.getTypeNamespace(), typeId), targetClass));
-                        }
-                    }
-                });
                 om.setDefaultTyping(typer);
             }
         } else {
@@ -163,7 +165,6 @@ public class GraphSONMapper implements Mapper<ObjectMapper> {
         return this.typeInfo;
     }
 
-
     private void registerJavaBaseTypes(final GraphSONTypeIdResolver graphSONTypeIdResolver) {
         Arrays.asList(
                 UUID.class,
@@ -179,11 +180,14 @@ public class GraphSONMapper implements Mapper<ObjectMapper> {
         private List<SimpleModule> customModules = new ArrayList<>();
         private boolean loadCustomModules = false;
         private boolean normalize = false;
-        private boolean embedTypes = false;
         private List<IoRegistry> registries = new ArrayList<>();
-        private GraphSONVersion version = GraphSONVersion.V1_0;
-        // GraphSON 2.0 should have types activated by default, otherwise use there's no point in using it instead of 1.0.
-        private TypeInfo typeInfo = TypeInfo.PARTIAL_TYPES;
+        private GraphSONVersion version = GraphSONVersion.V2_0;
+
+        /**
+         * GraphSON 2.0/3.0 should have types activated by default (3.0 does not have a typeless option), and 1.0
+         * should use no types by default.
+         */
+        private TypeInfo typeInfo = null;
 
         private Builder() {
         }
@@ -198,7 +202,7 @@ public class GraphSONMapper implements Mapper<ObjectMapper> {
         }
 
         /**
-         * Set the version of GraphSON to use. The default is {@link GraphSONVersion#V1_0}.
+         * Set the version of GraphSON to use. The default is {@link GraphSONVersion#V2_0}.
          */
         public Builder version(final GraphSONVersion version) {
             this.version = version;
@@ -239,36 +243,13 @@ public class GraphSONMapper implements Mapper<ObjectMapper> {
         }
 
         /**
-         * Embeds Java types into generated JSON to clarify their origins. Setting this value will override the value
-         * of {@link #typeInfo(TypeInfo)} where true will set it to {@link TypeInfo#PARTIAL_TYPES} and false will set
-         * it to {@link TypeInfo#NO_TYPES}.
-         *
-         * @deprecated As of release 3.2.1, replaced by {@link #typeInfo(TypeInfo)}.
-         */
-        @Deprecated
-        public Builder embedTypes(final boolean embedTypes) {
-            this.embedTypes = embedTypes;
-            this.typeInfo = embedTypes ? TypeInfo.PARTIAL_TYPES : TypeInfo.NO_TYPES;
-            return this;
-        }
-
-        /**
-         * Specify if the values are going to be typed or not, and at which level. Setting this value will override
-         * the value of {@link #embedTypes(boolean)} where {@link TypeInfo#PARTIAL_TYPES} will set it to true and
-         * {@link TypeInfo#NO_TYPES} will set it to false.
+         * Specify if the values are going to be typed or not, and at which level.
          *
          * The level can be {@link TypeInfo#NO_TYPES} or {@link TypeInfo#PARTIAL_TYPES}, and could be extended in the
          * future.
          */
         public Builder typeInfo(final TypeInfo typeInfo) {
             this.typeInfo = typeInfo;
-            if (typeInfo.equals(TypeInfo.PARTIAL_TYPES))
-                this.embedTypes = true;
-            else if (typeInfo.equals(TypeInfo.NO_TYPES))
-                this.embedTypes = false;
-            else
-                throw new IllegalArgumentException("This value can only be set to PARTIAL_TYPES and NO_TYPES");
-
             return this;
         }
 

@@ -29,9 +29,11 @@ import org.apache.tinkerpop.gremlin.driver.ResultSet;
 import org.apache.tinkerpop.gremlin.driver.exception.ResponseException;
 import org.apache.tinkerpop.gremlin.driver.handler.WebSocketClientHandler;
 import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV3d0;
 import org.apache.tinkerpop.gremlin.driver.ser.JsonBuilderGryoSerializer;
 import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0;
 import org.apache.tinkerpop.gremlin.driver.ser.Serializers;
+import org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin;
 import org.apache.tinkerpop.gremlin.server.channel.NioChannelizer;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertex;
@@ -136,7 +138,9 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
                 try {
                     final String p = TestHelper.generateTempFileFromResource(
                             GremlinDriverIntegrateTest.class, "generate-shouldRebindTraversalSourceVariables.groovy", "").getAbsolutePath();
-                    settings.scriptEngines.get("gremlin-groovy").scripts = Collections.singletonList(p);
+                    final Map<String,Object> m = new HashMap<>();
+                    m.put("files", Collections.singletonList(p));
+                    settings.scriptEngines.get("gremlin-groovy").plugins.put(ScriptFileGremlinPlugin.class.getName(), m);
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
@@ -245,7 +249,6 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
     @Test
     public void shouldEventuallySucceedAfterChannelLevelError() throws Exception {
         final Cluster cluster = TestClientFactory.build()
-                .reconnectIntialDelay(500)
                 .reconnectInterval(500)
                 .maxContentLength(1024).create();
         final Client client = cluster.connect();
@@ -401,8 +404,8 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
             fail("Should have thrown exception over bad serialization");
         } catch (Exception ex) {
             final Throwable inner = ExceptionUtils.getRootCause(ex);
-            assertTrue(inner instanceof RuntimeException);
-            assertThat(inner.getMessage(), startsWith("Encountered unregistered class ID:"));
+            assertThat(inner, instanceOf(ResponseException.class));
+            assertEquals(ResponseStatusCode.SERVER_ERROR_SERIALIZATION, ((ResponseException) inner).getResponseStatusCode());
         }
 
         // should not die completely just because we had a bad serialization error.  that kind of stuff happens
@@ -722,7 +725,7 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
     }
 
     @Test
-    public void shouldSerializeToStringWhenRequested() throws Exception {
+    public void shouldSerializeToStringWhenRequestedGryoV1() throws Exception {
         final Map<String, Object> m = new HashMap<>();
         m.put("serializeResultToString", true);
         final GryoMessageSerializerV1d0 serializer = new GryoMessageSerializerV1d0();
@@ -740,16 +743,49 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
     }
 
     @Test
-    public void shouldDeserializeWithCustomClasses() throws Exception {
+    public void shouldSerializeToStringWhenRequestedGryoV3() throws Exception {
         final Map<String, Object> m = new HashMap<>();
-        m.put("custom", Arrays.asList(String.format("%s;%s", JsonBuilder.class.getCanonicalName(), JsonBuilderGryoSerializer.class.getCanonicalName())));
+        m.put("serializeResultToString", true);
+        final GryoMessageSerializerV3d0 serializer = new GryoMessageSerializerV3d0();
+        serializer.configure(m, null);
+
+        final Cluster cluster = TestClientFactory.build().serializer(serializer).create();
+        final Client client = cluster.connect();
+
+        final ResultSet resultSet = client.submit("TinkerFactory.createClassic()");
+        final List<Result> results = resultSet.all().join();
+        assertEquals(1, results.size());
+        assertEquals("tinkergraph[vertices:6 edges:6]", results.get(0).getString());
+
+        cluster.close();
+    }
+
+    @Test
+    public void shouldDeserializeWithCustomClassesV1() throws Exception {
+        final Map<String, Object> m = new HashMap<>();
+        m.put("custom", Collections.singletonList(String.format("%s;%s", JsonBuilder.class.getCanonicalName(), JsonBuilderGryoSerializer.class.getCanonicalName())));
         final GryoMessageSerializerV1d0 serializer = new GryoMessageSerializerV1d0();
         serializer.configure(m, null);
 
         final Cluster cluster = TestClientFactory.build().serializer(serializer).create();
         final Client client = cluster.connect();
 
-        final List<Result> json = client.submit("b = new JsonBuilder();b.people{person {fname 'stephen'\nlname 'mallette'}};b").all().join();
+        final List<Result> json = client.submit("b = new groovy.json.JsonBuilder();b.people{person {fname 'stephen'\nlname 'mallette'}};b").all().join();
+        assertEquals("{\"people\":{\"person\":{\"fname\":\"stephen\",\"lname\":\"mallette\"}}}", json.get(0).getString());
+        cluster.close();
+    }
+
+    @Test
+    public void shouldDeserializeWithCustomClassesV3() throws Exception {
+        final Map<String, Object> m = new HashMap<>();
+        m.put("custom", Collections.singletonList(String.format("%s;%s", JsonBuilder.class.getCanonicalName(), JsonBuilderGryoSerializer.class.getCanonicalName())));
+        final GryoMessageSerializerV3d0 serializer = new GryoMessageSerializerV3d0();
+        serializer.configure(m, null);
+
+        final Cluster cluster = TestClientFactory.build().serializer(serializer).create();
+        final Client client = cluster.connect();
+
+        final List<Result> json = client.submit("b = new groovy.json.JsonBuilder();b.people{person {fname 'stephen'\nlname 'mallette'}};b").all().join();
         assertEquals("{\"people\":{\"person\":{\"fname\":\"stephen\",\"lname\":\"mallette\"}}}", json.get(0).getString());
         cluster.close();
     }
@@ -812,6 +848,40 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
     @Test
     public void shouldWorkWithGraphSONExtendedV2Serialization() throws Exception {
         final Cluster cluster = TestClientFactory.build().serializer(Serializers.GRAPHSON_V2D0).create();
+        final Client client = cluster.connect();
+
+        final Instant now = Instant.now();
+        final List<Result> r = client.submit("java.time.Instant.ofEpochMilli(" + now.toEpochMilli() + ")").all().join();
+        assertEquals(1, r.size());
+
+        final Instant then = r.get(0).get(Instant.class);
+        assertEquals(now, then);
+
+        cluster.close();
+    }
+
+    @Test
+    public void shouldWorkWithGraphSONV3Serialization() throws Exception {
+        final Cluster cluster = TestClientFactory.build().serializer(Serializers.GRAPHSON_V3D0).create();
+        final Client client = cluster.connect();
+
+        final List<Result> r = client.submit("TinkerFactory.createModern().traversal().V(1)").all().join();
+        assertEquals(1, r.size());
+
+        final Vertex v = r.get(0).get(DetachedVertex.class);
+        assertEquals(1, v.id());
+        assertEquals("person", v.label());
+
+        assertEquals(2, IteratorUtils.count(v.properties()));
+        assertEquals("marko", v.value("name"));
+        assertEquals(29, Integer.parseInt(v.value("age").toString()));
+
+        cluster.close();
+    }
+
+    @Test
+    public void shouldWorkWithGraphSONExtendedV3Serialization() throws Exception {
+        final Cluster cluster = TestClientFactory.build().serializer(Serializers.GRAPHSON_V3D0).create();
         final Client client = cluster.connect();
 
         final Instant now = Instant.now();
@@ -1018,7 +1088,7 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
         final Client client = cluster.connect();
 
         // this line is important because it tests GraphTraversal which has a certain transactional path
-        final Vertex vertexRequest1 = client.submit("g.addV(\"name\",\"stephen\")").all().get().get(0).getVertex();
+        final Vertex vertexRequest1 = client.submit("g.addV().property(\"name\",\"stephen\")").all().get().get(0).getVertex();
         assertEquals("stephen", vertexRequest1.values("name").next());
 
         final Vertex vertexRequest2 = client.submit("graph.vertices().next()").all().get().get(0).getVertex();
@@ -1244,7 +1314,7 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
         final Client client = cluster.connect();
 
         try {
-            client.submit("g.addV('name','stephen')").all().get().get(0).getVertex();
+            client.submit("g.addV().property('name','stephen')").all().get().get(0).getVertex();
             fail("Should have tossed an exception because \"g\" is readonly in this context");
         } catch (Exception ex) {
             final Throwable root = ExceptionUtils.getRootCause(ex);
@@ -1255,11 +1325,11 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
 
         // keep the testing here until "rebind" is completely removed
         final Client clientLegacy = client.rebind("g1");
-        final Vertex vLegacy = clientLegacy.submit("g.addV('name','stephen')").all().get().get(0).getVertex();
+        final Vertex vLegacy = clientLegacy.submit("g.addV().property('name','stephen')").all().get().get(0).getVertex();
         assertEquals("stephen", vLegacy.value("name"));
 
         final Client clientAliased = client.alias("g1");
-        final Vertex v = clientAliased.submit("g.addV('name','jason')").all().get().get(0).getVertex();
+        final Vertex v = clientAliased.submit("g.addV().property('name','jason')").all().get().get(0).getVertex();
         assertEquals("jason", v.value("name"));
 
         cluster.close();
@@ -1300,7 +1370,7 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
         final Client client = cluster.connect(name.getMethodName());
 
         try {
-            client.submit("g.addV('name','stephen')").all().get().get(0).getVertex();
+            client.submit("g.addV().property('name','stephen')").all().get().get(0).getVertex();
             fail("Should have tossed an exception because \"g\" is readonly in this context");
         } catch (Exception ex) {
             final Throwable root = ExceptionUtils.getRootCause(ex);
@@ -1312,12 +1382,12 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
         // keep the testing here until "rebind" is completely removed
         final Client clientLegacy = client.rebind("g1");
         assertEquals("stephen", clientLegacy.submit("n='stephen'").all().get().get(0).getString());
-        final Vertex vLegacy = clientLegacy.submit("g.addV('name',n)").all().get().get(0).getVertex();
+        final Vertex vLegacy = clientLegacy.submit("g.addV().property('name',n)").all().get().get(0).getVertex();
         assertEquals("stephen", vLegacy.value("name"));
 
         final Client clientAliased = client.alias("g1");
         assertEquals("jason", clientAliased.submit("n='jason'").all().get().get(0).getString());
-        final Vertex v = clientAliased.submit("g.addV('name',n)").all().get().get(0).getVertex();
+        final Vertex v = clientAliased.submit("g.addV().property('name',n)").all().get().get(0).getVertex();
         assertEquals("jason", v.value("name"));
 
         cluster.close();
@@ -1333,7 +1403,7 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
         final Client sessionWithoutManagedTx = cluster.connect(name.getMethodName() + "-not-managed");
 
         // this should auto-commit
-        final Vertex vStephen = sessionWithManagedTx.submit("v = g.addV('name','stephen').next()").all().get().get(0).getVertex();
+        final Vertex vStephen = sessionWithManagedTx.submit("v = g.addV().property('name','stephen').next()").all().get().get(0).getVertex();
         assertEquals("stephen", vStephen.value("name"));
 
         // the other clients should see that change because of auto-commit
@@ -1341,7 +1411,7 @@ public class GremlinDriverIntegrateTest extends AbstractGremlinServerIntegration
         assertThat(sessionWithoutManagedTx.submit("g.V().has('name','stephen').hasNext()").all().get().get(0).getBoolean(), is(true));
 
         // this should NOT auto-commit
-        final Vertex vDaniel = sessionWithoutManagedTx.submit("v = g.addV('name','daniel').next()").all().get().get(0).getVertex();
+        final Vertex vDaniel = sessionWithoutManagedTx.submit("v = g.addV().property('name','daniel').next()").all().get().get(0).getVertex();
         assertEquals("daniel", vDaniel.value("name"));
 
         // the other clients should NOT see that change because of auto-commit

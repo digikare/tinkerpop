@@ -19,7 +19,7 @@
 
 import org.apache.tinkerpop.gremlin.server.GremlinServer
 import org.apache.tinkerpop.gremlin.server.Settings
-import org.apache.tinkerpop.gremlin.server.auth.SimpleAuthenticator
+import org.apache.tinkerpop.gremlin.server.Settings.SerializerSettings
 
 if (Boolean.parseBoolean(skipTests)) return
 
@@ -31,7 +31,7 @@ settings.graphs.modern = gremlinServerDir + "/src/test/scripts/tinkergraph-empty
 settings.graphs.crew = gremlinServerDir + "/src/test/scripts/tinkergraph-empty.properties"
 settings.graphs.grateful = gremlinServerDir + "/src/test/scripts/tinkergraph-empty.properties"
 settings.graphs.sink = gremlinServerDir + "/src/test/scripts/tinkergraph-empty.properties"
-settings.scriptEngines["gremlin-groovy"].scripts = [gremlinServerDir + "/src/test/scripts/generate-all.groovy"]
+settings.scriptEngines["gremlin-groovy"].plugins["org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin"].files = [gremlinServerDir + "/src/test/scripts/generate-all.groovy"]
 if (Boolean.parseBoolean(python)) {
     settings.scriptEngines["gremlin-python"] = new Settings.ScriptEngineSettings()
     settings.scriptEngines["gremlin-jython"] = new Settings.ScriptEngineSettings()
@@ -44,6 +44,15 @@ server.start().join()
 project.setContextValue("gremlin.server", server)
 log.info("Gremlin Server with no authentication started on port 45940")
 
+def securePropsFile = new File("${projectBaseDir}/target/tinkergraph-credentials.properties")
+if (!securePropsFile.exists()) {
+    securePropsFile.createNewFile()
+    securePropsFile << "gremlin.graph=org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph\n"
+    securePropsFile << "gremlin.tinkergraph.vertexIdManager=LONG\n"
+    securePropsFile << "gremlin.tinkergraph.graphLocation=${gremlinServerDir}/data/credentials.kryo\n"
+    securePropsFile << "gremlin.tinkergraph.graphFormat=gryo"
+}
+
 def settingsSecure = Settings.read("${settingsFile}")
 settingsSecure.graphs.graph = gremlinServerDir + "/src/test/scripts/tinkergraph-empty.properties"
 settingsSecure.graphs.classic = gremlinServerDir + "/src/test/scripts/tinkergraph-empty.properties"
@@ -51,14 +60,14 @@ settingsSecure.graphs.modern = gremlinServerDir + "/src/test/scripts/tinkergraph
 settingsSecure.graphs.crew = gremlinServerDir + "/src/test/scripts/tinkergraph-empty.properties"
 settingsSecure.graphs.grateful = gremlinServerDir + "/src/test/scripts/tinkergraph-empty.properties"
 settingsSecure.graphs.sink = gremlinServerDir + "/src/test/scripts/tinkergraph-empty.properties"
-settingsSecure.scriptEngines["gremlin-groovy"].scripts = [gremlinServerDir + "/src/test/scripts/generate-all.groovy"]
+settingsSecure.scriptEngines["gremlin-groovy"].plugins["org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin"].files = [gremlinServerDir + "/src/test/scripts/generate-all.groovy"]
 if (Boolean.parseBoolean(python)) {
     settingsSecure.scriptEngines["gremlin-python"] = new Settings.ScriptEngineSettings()
     settingsSecure.scriptEngines["gremlin-jython"] = new Settings.ScriptEngineSettings()
 }
 settingsSecure.port = 45941
-settingsSecure.authentication.className = SimpleAuthenticator.class.name
-settingsSecure.authentication.config = [credentialsDb: gremlinServerDir + "/conf/tinkergraph-credentials.properties", credentialsDbLocation: gremlinServerDir + "/data/credentials.kryo"]
+settingsSecure.authentication.authenticator = "org.apache.tinkerpop.gremlin.server.auth.SimpleAuthenticator"
+settingsSecure.authentication.config = [credentialsDb: projectBaseDir + "/target/tinkergraph-credentials.properties"]
 
 def serverSecure = new GremlinServer(settingsSecure)
 serverSecure.start().join()

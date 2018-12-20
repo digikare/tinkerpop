@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -203,18 +202,6 @@ public abstract class AbstractGremlinTest {
      */
     public void tryCommit(final Graph graph) {
         if (graph.features().graph().supportsTransactions())
-            graph.tx().commit();
-    }
-
-    /**
-     * This method does not appear to be used in TinkerPop core.  It was used at one time by Neo4j tests, but wasn't
-     * really a great pattern and was eventually removed.
-     *
-     * @deprecated as of 3.1.1-incubating, and is not replaced
-     */
-    @Deprecated
-    public void tryRandomCommit(final Graph graph) {
-        if (graph.features().graph().supportsTransactions() && new Random().nextBoolean())
             graph.tx().commit();
     }
 

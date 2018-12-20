@@ -23,13 +23,14 @@
 
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Gremlin.Net.Driver.Messages
 {
-    internal class ResponseResult<T>
+    internal class ResponseResult
     {
         [JsonProperty(PropertyName = "data")]
-        public List<T> Data { get; set; }
+        public JToken Data { get; set; }
 
         [JsonProperty(PropertyName = "meta")]
         public Dictionary<string, object> Meta { get; set; }

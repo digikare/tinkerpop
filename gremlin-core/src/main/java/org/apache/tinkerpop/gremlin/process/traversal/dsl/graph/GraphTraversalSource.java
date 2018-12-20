@@ -23,14 +23,13 @@ import org.apache.tinkerpop.gremlin.process.computer.Computer;
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer;
 import org.apache.tinkerpop.gremlin.process.remote.RemoteConnection;
 import org.apache.tinkerpop.gremlin.process.remote.traversal.strategy.decoration.RemoteStrategy;
-import org.apache.tinkerpop.gremlin.process.traversal.Bindings;
+import org.apache.tinkerpop.gremlin.process.traversal.AnonymousTraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
-import org.apache.tinkerpop.gremlin.process.traversal.TraversalEngine;
+import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategy;
-import org.apache.tinkerpop.gremlin.process.traversal.engine.ComputerTraversalEngine;
-import org.apache.tinkerpop.gremlin.process.traversal.engine.StandardTraversalEngine;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.AddEdgeStartStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.AddVertexStartStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.InjectStep;
@@ -38,14 +37,10 @@ import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.Requir
 import org.apache.tinkerpop.gremlin.process.traversal.traverser.TraverserRequirement;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Graph;
-import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Transaction;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
@@ -137,12 +132,6 @@ public class GraphTraversalSource implements TraversalSource {
     @SuppressWarnings({"unchecked"})
     public GraphTraversalSource withoutStrategies(final Class<? extends TraversalStrategy>... traversalStrategyClasses) {
         return (GraphTraversalSource) TraversalSource.super.withoutStrategies(traversalStrategyClasses);
-    }
-
-    @Override
-    @Deprecated
-    public GraphTraversalSource withBindings(final Bindings bindings) {
-        return (GraphTraversalSource) TraversalSource.super.withBindings(bindings);
     }
 
     /**
@@ -283,24 +272,36 @@ public class GraphTraversalSource implements TraversalSource {
 
     /**
      * {@inheritDoc}
+     *
+     * @deprecated As of release 3.3.5, replaced by {@link AnonymousTraversalSource#withRemote(Configuration)}.
+     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-2078">TINKERPOP-2078</a>
      */
     @Override
+    @Deprecated
     public GraphTraversalSource withRemote(final Configuration conf) {
         return (GraphTraversalSource) TraversalSource.super.withRemote(conf);
     }
 
     /**
      * {@inheritDoc}
+     *
+     * @deprecated As of release 3.3.5, replaced by {@link AnonymousTraversalSource#withRemote(String)}.
+     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-2078">TINKERPOP-2078</a>
      */
     @Override
+    @Deprecated
     public GraphTraversalSource withRemote(final String configFile) throws Exception {
         return (GraphTraversalSource) TraversalSource.super.withRemote(configFile);
     }
 
     /**
      * {@inheritDoc}
+     *
+     * @deprecated As of release 3.3.5, replaced by {@link AnonymousTraversalSource#withRemote(RemoteConnection)}.
+     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-2078">TINKERPOP-2078</a>
      */
     @Override
+    @Deprecated
     public GraphTraversalSource withRemote(final RemoteConnection connection) {
         // check if someone called withRemote() more than once, so just release resources on the initial
         // connection as you can't have more than one. maybe better to toss IllegalStateException??
@@ -315,26 +316,6 @@ public class GraphTraversalSource implements TraversalSource {
 
     //// SPAWNS
 
-    /**
-     * @deprecated As of release 3.1.0, replaced by {@link #addV()}
-     */
-    @Deprecated
-    public GraphTraversal<Vertex, Vertex> addV(final Object... keyValues) {
-        ElementHelper.legalPropertyKeyValueArray(keyValues);
-        if (keyValues.length != 0 && keyValues[0].equals(T.label)) {
-            final GraphTraversal<Vertex, Vertex> traversal = this.addV(keyValues[1].toString());
-            for (int i = 2; i < keyValues.length; i = i + 2) {
-                traversal.property(keyValues[i], keyValues[i + 1]);
-            }
-            return traversal;
-        } else {
-            final GraphTraversal<Vertex, Vertex> traversal = this.addV();
-            for (int i = 0; i < keyValues.length; i = i + 2) {
-                traversal.property(keyValues[i], keyValues[i + 1]);
-            }
-            return traversal;
-        }
-    }
 
     /**
      * Spawns a {@link GraphTraversal} by adding a vertex with the specified label.
@@ -347,13 +328,43 @@ public class GraphTraversalSource implements TraversalSource {
     }
 
     /**
+     * Spawns a {@link GraphTraversal} by adding a vertex with the label as determined by a {@link Traversal}.
+     */
+    public GraphTraversal<Vertex, Vertex> addV(final Traversal<?, String> vertexLabelTraversal) {
+        final GraphTraversalSource clone = this.clone();
+        clone.bytecode.addStep(GraphTraversal.Symbols.addV, vertexLabelTraversal);
+        final GraphTraversal.Admin<Vertex, Vertex> traversal = new DefaultGraphTraversal<>(clone);
+        return traversal.addStep(new AddVertexStartStep(traversal, vertexLabelTraversal));
+    }
+
+    /**
      * Spawns a {@link GraphTraversal} by adding a vertex with the default label.
      */
     public GraphTraversal<Vertex, Vertex> addV() {
         final GraphTraversalSource clone = this.clone();
         clone.bytecode.addStep(GraphTraversal.Symbols.addV);
         final GraphTraversal.Admin<Vertex, Vertex> traversal = new DefaultGraphTraversal<>(clone);
-        return traversal.addStep(new AddVertexStartStep(traversal, null));
+        return traversal.addStep(new AddVertexStartStep(traversal, (String)null));
+    }
+
+    /**
+     * Spawns a {@link GraphTraversal} by adding a edge with the specified label.
+     */
+    public GraphTraversal<Edge, Edge> addE(final String label) {
+        final GraphTraversalSource clone = this.clone();
+        clone.bytecode.addStep(GraphTraversal.Symbols.addE, label);
+        final GraphTraversal.Admin<Edge, Edge> traversal = new DefaultGraphTraversal<>(clone);
+        return traversal.addStep(new AddEdgeStartStep(traversal, label));
+    }
+
+    /**
+     * Spawns a {@link GraphTraversal} by adding a edge with a label as specified by the provided {@link Traversal}.
+     */
+    public GraphTraversal<Edge, Edge> addE(final Traversal<?, String> edgeLabelTraversal) {
+        final GraphTraversalSource clone = this.clone();
+        clone.bytecode.addStep(GraphTraversal.Symbols.addE, edgeLabelTraversal);
+        final GraphTraversal.Admin<Edge, Edge> traversal = new DefaultGraphTraversal<>(clone);
+        return traversal.addStep(new AddEdgeStartStep(traversal, edgeLabelTraversal));
     }
 
     /**
@@ -408,99 +419,4 @@ public class GraphTraversalSource implements TraversalSource {
         return StringFactory.traversalSourceString(this);
     }
 
-    //////////////////
-    // DEPRECATION //
-    /////////////////
-
-    /**
-     * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-     */
-    @Deprecated
-    public static Builder build() {
-        return new Builder();
-    }
-
-    /**
-     * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-     */
-    @Deprecated
-    public static Builder standard() {
-        return GraphTraversalSource.build().engine(StandardTraversalEngine.build());
-    }
-
-    /**
-     * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-     */
-    @Deprecated
-    public static Builder computer() {
-        return GraphTraversalSource.build().engine(ComputerTraversalEngine.build());
-    }
-
-    /**
-     * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-     */
-    @Deprecated
-    public static Builder computer(final Class<? extends GraphComputer> graphComputerClass) {
-        return GraphTraversalSource.build().engine(ComputerTraversalEngine.build().computer(graphComputerClass));
-    }
-
-    /**
-     * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-     */
-    @Deprecated
-    public final static class Builder implements TraversalSource.Builder<GraphTraversalSource> {
-
-        private TraversalEngine.Builder engineBuilder = StandardTraversalEngine.build();
-        private List<TraversalStrategy> withStrategies = new ArrayList<>();
-        private List<Class<? extends TraversalStrategy>> withoutStrategies = new ArrayList<>();
-
-        private Builder() {
-        }
-
-        /**
-         * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-         */
-        @Deprecated
-        @Override
-        public Builder engine(final TraversalEngine.Builder engineBuilder) {
-            this.engineBuilder = engineBuilder;
-            return this;
-        }
-
-        /**
-         * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-         */
-        @Deprecated
-        @Override
-        public Builder with(final TraversalStrategy strategy) {
-            this.withStrategies.add(strategy);
-            return this;
-        }
-
-        /**
-         * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-         */
-        @Deprecated
-        @Override
-        public TraversalSource.Builder without(final Class<? extends TraversalStrategy> strategyClass) {
-            this.withoutStrategies.add(strategyClass);
-            return this;
-        }
-
-        /**
-         * @deprecated As of release 3.2.0. Please use {@link Graph#traversal(Class)}.
-         */
-        @Deprecated
-        @Override
-        public GraphTraversalSource create(final Graph graph) {
-            GraphTraversalSource traversalSource = new GraphTraversalSource(graph);
-            if (!this.withStrategies.isEmpty())
-                traversalSource = traversalSource.withStrategies(this.withStrategies.toArray(new TraversalStrategy[this.withStrategies.size()]));
-            if (!this.withoutStrategies.isEmpty())
-                traversalSource = traversalSource.withoutStrategies(this.withoutStrategies.toArray(new Class[this.withoutStrategies.size()]));
-            if (this.engineBuilder instanceof ComputerTraversalEngine.Builder)
-                traversalSource = (GraphTraversalSource) ((ComputerTraversalEngine.Builder) this.engineBuilder).create(traversalSource);
-            return traversalSource;
-        }
-    }
 }

@@ -53,7 +53,12 @@ public class ReferenceVertexProperty<V> extends ReferenceElement<VertexProperty<
 
     @Override
     public String key() {
-        return this.label();
+        return this.label;
+    }
+
+    @Override
+    public String label() {
+        return this.label;
     }
 
     @Override

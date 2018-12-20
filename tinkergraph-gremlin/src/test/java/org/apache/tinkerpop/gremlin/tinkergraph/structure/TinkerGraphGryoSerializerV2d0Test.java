@@ -38,7 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link TinkerIoRegistry.TinkerGraphGryoSerializer}
+ * Unit tests for {@link TinkerIoRegistryV2d0.TinkerGraphGryoSerializer}.
  */
 @RunWith(MockitoJUnitRunner.class)
 public class TinkerGraphGryoSerializerV2d0Test {

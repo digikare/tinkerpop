@@ -26,7 +26,6 @@ import org.apache.tinkerpop.gremlin.process.computer.ProgramPhase;
 import org.apache.tinkerpop.gremlin.process.computer.traversal.MemoryTraversalSideEffects;
 import org.apache.tinkerpop.gremlin.process.computer.traversal.TraversalVertexProgram;
 import org.apache.tinkerpop.gremlin.process.computer.traversal.strategy.finalization.ComputerFinalizationStrategy;
-import org.apache.tinkerpop.gremlin.process.traversal.NumberHelper;
 import org.apache.tinkerpop.gremlin.process.traversal.Scope;
 import org.apache.tinkerpop.gremlin.process.traversal.Step;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
@@ -51,6 +50,7 @@ import org.apache.tinkerpop.gremlin.spark.process.computer.SparkMemory;
 import org.apache.tinkerpop.gremlin.spark.process.computer.traversal.strategy.SparkVertexProgramInterceptor;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
+import org.apache.tinkerpop.gremlin.util.NumberHelper;
 import org.apache.tinkerpop.gremlin.util.function.ArrayListSupplier;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 
@@ -86,13 +86,11 @@ public final class SparkStarBarrierInterceptor implements SparkVertexProgramInte
                 .filter(vertexWritable -> ElementHelper.idExists(vertexWritable.get().id(), graphStepIds)) // ensure vertex ids are in V(x)
                 .flatMap(vertexWritable -> {
                     if (identityTraversal)                          // g.V.count()-style (identity)
-                        return () -> IteratorUtils.of(traversal.getTraverserGenerator().generate(vertexWritable.get(), (Step) graphStep, 1l));
+                        return IteratorUtils.of(traversal.getTraverserGenerator().generate(vertexWritable.get(), (Step) graphStep, 1l));
                     else {                                          // add the vertex to head of the traversal
-                        return () -> {                              // and iterate it for its results
-                            final Traversal.Admin<Vertex, ?> clone = traversal.clone(); // need a unique clone for each vertex to isolate the computation
-                            clone.getStartStep().addStart(clone.getTraverserGenerator().generate(vertexWritable.get(), graphStep, 1l));
-                            return (Step) clone.getEndStep();
-                        };
+                        final Traversal.Admin<Vertex, ?> clone = traversal.clone(); // need a unique clone for each vertex to isolate the computation
+                        clone.getStartStep().addStart(clone.getTraverserGenerator().generate(vertexWritable.get(), graphStep, 1l));
+                        return (Step) clone.getEndStep();
                     }
                 });
         // USE SPARK DSL FOR THE RESPECTIVE END REDUCING BARRIER STEP OF THE TRAVERSAL
@@ -134,14 +132,14 @@ public final class SparkStarBarrierInterceptor implements SparkVertexProgramInte
             result = ((GroupStep) endStep).generateFinalResult(nextRDD.
                     mapPartitions(partitions -> {
                         final GroupStep<Object, Object, Object> clone = (GroupStep) endStep.clone();
-                        return () -> IteratorUtils.map(partitions, clone::projectTraverser);
+                        return IteratorUtils.map(partitions, clone::projectTraverser);
                     }).fold(((GroupStep<Object, Object, Object>) endStep).getSeedSupplier().get(), biOperator::apply));
         } else if (endStep instanceof GroupCountStep) {
             final GroupCountStep.GroupCountBiOperator<Object> biOperator = GroupCountStep.GroupCountBiOperator.instance();
             result = nextRDD
                     .mapPartitions(partitions -> {
                         final GroupCountStep<Object, Object> clone = (GroupCountStep) endStep.clone();
-                        return () -> IteratorUtils.map(partitions, clone::projectTraverser);
+                        return IteratorUtils.map(partitions, clone::projectTraverser);
                     })
                     .fold(((GroupCountStep<Object, Object>) endStep).getSeedSupplier().get(), biOperator::apply);
         } else

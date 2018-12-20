@@ -89,7 +89,7 @@ public final class Bytecode implements Cloneable, Serializable {
      *
      * @return an iterable of instructions
      */
-    public Iterable<Instruction> getSourceInstructions() {
+    public List<Instruction> getSourceInstructions() {
         return this.sourceInstructions;
     }
 
@@ -98,7 +98,7 @@ public final class Bytecode implements Cloneable, Serializable {
      *
      * @return an iterable of instructions
      */
-    public Iterable<Instruction> getStepInstructions() {
+    public List<Instruction> getStepInstructions() {
         return this.stepInstructions;
     }
 
@@ -255,7 +255,7 @@ public final class Bytecode implements Cloneable, Serializable {
     private final Object[] flattenArguments(final Object... arguments) {
         if (arguments.length == 0)
             return EMPTY_ARRAY;
-        final List<Object> flatArguments = new ArrayList<>();
+        final List<Object> flatArguments = new ArrayList<>(arguments.length);
         for (final Object object : arguments) {
             if (object instanceof Object[]) {
                 for (final Object nestObject : (Object[]) object) {

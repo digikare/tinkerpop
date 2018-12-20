@@ -52,10 +52,9 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.map.FlatMapTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.FoldTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.LoopsTest;
-import org.apache.tinkerpop.gremlin.process.traversal.step.map.MapKeysTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MapTest;
-import org.apache.tinkerpop.gremlin.process.traversal.step.map.MapValuesTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MatchTest;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.MathTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MaxTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MeanTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MinTest;
@@ -73,7 +72,6 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.AggregateT
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.ExplainTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.GroupCountTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.GroupTest;
-import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.GroupTestV3d0;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.InjectTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.SackTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.SideEffectCapTest;
@@ -86,6 +84,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.EventS
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.PartitionStrategyProcessTest;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.SubgraphStrategyProcessTest;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.TranslationStrategyProcessTest;
+import org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.IncidentToAdjacentStrategyProcessTest;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.ReadOnlyStrategyProcessTest;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.StructureStandardSuite;
@@ -142,10 +141,9 @@ public class ProcessStandardSuite extends AbstractGremlinSuite {
             GraphTest.Traversals.class,
             LoopsTest.Traversals.class,
             MapTest.Traversals.class,
-            MapKeysTest.Traversals.class,
-            MapValuesTest.Traversals.class,
             MatchTest.CountMatchTraversals.class,
             MatchTest.GreedyMatchTraversals.class,
+            MathTest.Traversals.class,
             MaxTest.Traversals.class,
             MeanTest.Traversals.class,
             MinTest.Traversals.class,
@@ -164,7 +162,6 @@ public class ProcessStandardSuite extends AbstractGremlinSuite {
             AggregateTest.Traversals.class,
             ExplainTest.Traversals.class,
             GroupTest.Traversals.class,
-            GroupTestV3d0.Traversals.class,
             GroupCountTest.Traversals.class,
             InjectTest.Traversals.class,
             SackTest.Traversals.class,
@@ -187,7 +184,10 @@ public class ProcessStandardSuite extends AbstractGremlinSuite {
             EventStrategyProcessTest.class,
             ReadOnlyStrategyProcessTest.class,
             PartitionStrategyProcessTest.class,
-            SubgraphStrategyProcessTest.class
+            SubgraphStrategyProcessTest.class,
+
+            // optimizations
+            IncidentToAdjacentStrategyProcessTest.class
     };
 
     /**
@@ -228,9 +228,8 @@ public class ProcessStandardSuite extends AbstractGremlinSuite {
             FoldTest.class,
             LoopsTest.class,
             MapTest.class,
-            MapKeysTest.class,
-            MapValuesTest.class,
             MatchTest.class,
+            MathTest.class,
             MaxTest.class,
             MeanTest.class,
             MinTest.class,

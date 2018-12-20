@@ -122,63 +122,6 @@ Feature: Step - range()
       | v[ripple] |
     And the result should have a count of 6
 
-  Scenario: g_V_asXaX_in_asXaX_in_asXaX_selectXaX_byXunfold_valuesXnameX_foldX_limitXlocal_2X
-    Given the modern graph
-    And the traversal of
-      """
-      g.V().as("a").in().as("a").in().as("a").select("a").by(__.unfold().values("name").fold()).limit(Scope.local, 2)
-      """
-    When iterated to list
-    Then the result should be unordered
-      | result |
-      | l[lop,josh] |
-      | l[ripple,josh] |
-
-  Scenario: g_V_asXaX_in_asXaX_in_asXaX_selectXaX_byXunfold_valuesXnameX_foldX_limitXlocal_1X
-    Given the modern graph
-    And the traversal of
-      """
-      g.V().as("a").in().as("a").in().as("a").select("a").by(__.unfold().values("name").fold()).limit(Scope.local, 1)
-      """
-    When iterated to list
-    Then the result should be unordered
-      | result |
-      | lop |
-      | ripple |
-
-  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXaX_byXunfold_valuesXnameX_foldX_rangeXlocal_1_3X
-    Given the modern graph
-    And the traversal of
-      """
-      g.V().as("a").out().as("a").out().as("a").select("a").by(__.unfold().values("name").fold()).range(Scope.local, 1, 3)
-      """
-    When iterated to list
-    Then the result should be unordered
-      | result |
-      | l[josh,ripple] |
-      | l[josh,lop] |
-
-  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXaX_byXunfold_valuesXnameX_foldX_rangeXlocal_1_2X
-    Given the modern graph
-    And the traversal of
-      """
-      g.V().as("a").out().as("a").out().as("a").select("a").by(__.unfold().values("name").fold()).range(Scope.local, 1, 2)
-      """
-    When iterated to list
-    Then the result should be unordered
-      | result |
-      | josh |
-      | josh |
-
-  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXaX_byXunfold_valuesXnameX_foldX_rangeXlocal_4_5X
-    Given the modern graph
-    And the traversal of
-      """
-      g.V().as("a").out().as("a").out().as("a").select("a").by(__.unfold().values("name").fold()).range(Scope.local, 4, 5)
-      """
-    When iterated to list
-    Then the result should be empty
-
   Scenario: g_V_asXaX_in_asXbX_in_asXcX_selectXa_b_cX_byXnameX_limitXlocal_2X
     Given the modern graph
     And the traversal of
@@ -226,3 +169,97 @@ Feature: Step - range()
       | result |
       | m[{"b":"josh"}] |
       | m[{"b":"josh"}] |
+
+  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXmixed_aX_byXunfold_valuesXnameX_foldX_rangeXlocal_1_3X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").out().as("a").out().as("a").select(Pop.mixed, "a").by(__.unfold().values("name").fold()).range(Scope.local, 1, 3)
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | l[josh,ripple] |
+      | l[josh,lop] |
+
+  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXmixed_aX_byXunfold_valuesXnameX_foldX_rangeXlocal_1_2X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").out().as("a").out().as("a").select(Pop.mixed, "a").by(__.unfold().values("name").fold()).range(Scope.local, 1, 2)
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | josh |
+      | josh |
+
+  Scenario: g_V_hasLabelXpersonX_order_byXageX_skipX1X_valuesXnameX
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().hasLabel("person").order().by("age").skip(1).values("name")
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | marko |
+      | josh |
+      | peter |
+
+  Scenario: g_V_asXaX_out_asXaX_out_asXaX_selectXmixed_aX_byXunfold_valuesXnameX_foldX_rangeXlocal_4_5X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").out().as("a").out().as("a").select(Pop.mixed, "a").by(__.unfold().values("name").fold()).range(Scope.local, 4, 5)
+      """
+    When iterated to list
+    Then the result should be empty
+
+  Scenario: g_V_outE_valuesXweightX_fold_orderXlocalX_skipXlocal_2X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().outE().values("weight").fold().order(Scope.local).skip(Scope.local, 2)
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | l[d[0.4].d,d[0.5].d,d[1.0].d,d[1.0].d] |
+
+  Scenario: g_V_asXaX_in_asXaX_in_asXaX_selectXmixed_aX_byXunfold_valuesXnameX_foldX_limitXlocal_1X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").in().as("a").in().as("a").select(Pop.mixed, "a").by(__.unfold().values("name").fold()).limit(Scope.local, 1)
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | lop    |
+      | ripple |
+
+  Scenario: g_V_asXaX_in_asXaX_in_asXaX_selectXmixed_aX_byXunfold_valuesXnameX_foldX_limitXlocal_2X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").in().as("a").in().as("a").select(Pop.mixed, "a").by(__.unfold().values("name").fold()).limit(Scope.local, 2)
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | l[lop,josh] |
+      | l[ripple,josh] |
+
+  Scenario: g_V_hasLabelXpersonX_order_byXageX_valuesXnameX_skipX1X
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().hasLabel("person").order().by("age").values("name").skip(1)
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | marko |
+      | josh |
+      | peter |

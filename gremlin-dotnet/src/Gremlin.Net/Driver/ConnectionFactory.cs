@@ -33,20 +33,22 @@ namespace Gremlin.Net.Driver
         private readonly GraphSONWriter _graphSONWriter;
         private readonly Action<ClientWebSocketOptions> _webSocketConfiguration;
         private readonly GremlinServer _gremlinServer;
+        private readonly string _mimeType;
 
         public ConnectionFactory(GremlinServer gremlinServer, GraphSONReader graphSONReader,
-            GraphSONWriter graphSONWriter, Action<ClientWebSocketOptions> webSocketConfiguration)
+            GraphSONWriter graphSONWriter, string mimeType, Action<ClientWebSocketOptions> webSocketConfiguration)
         {
             _gremlinServer = gremlinServer;
-            _graphSONReader = graphSONReader;
-            _graphSONWriter = graphSONWriter;
+            _mimeType = mimeType;
+            _graphSONReader = graphSONReader ?? throw new ArgumentNullException(nameof(graphSONReader));
+            _graphSONWriter = graphSONWriter ?? throw new ArgumentNullException(nameof(graphSONWriter));
             _webSocketConfiguration = webSocketConfiguration;
         }
 
         public Connection CreateConnection()
         {
             return new Connection(_gremlinServer.Uri, _gremlinServer.Username, _gremlinServer.Password, _graphSONReader,
-                _graphSONWriter, _webSocketConfiguration);
+                                 _graphSONWriter, _mimeType, _webSocketConfiguration);
         }
     }
 }

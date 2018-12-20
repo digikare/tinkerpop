@@ -19,6 +19,7 @@
 package org.apache.tinkerpop.gremlin.driver.ser;
 
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoMapper;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoVersion;
 import org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertex;
 
 /**
@@ -37,7 +38,7 @@ public final class GryoMessageSerializerV1d0 extends AbstractGryoMessageSerializ
      * Creates an instance with a standard {@link GryoMapper} instance.
      */
     public GryoMessageSerializerV1d0() {
-        super(GryoMapper.build().create());
+        super(GryoMapper.build().version(GryoVersion.V1_0).create());
     }
 
     /**
@@ -45,18 +46,7 @@ public final class GryoMessageSerializerV1d0 extends AbstractGryoMessageSerializ
      * builder will be overridden by {@link #configure} if it is called.
      */
     public GryoMessageSerializerV1d0(final GryoMapper.Builder kryo) {
-        super(kryo.create());
-    }
-
-    /**
-     * Creates an instance with a standard {@link GryoMapper} instance. Note that the instance supplied
-     * will be overridden by {@link #configure} if it is called.
-     *
-     * @deprecated As of release 3.2.1, replaced by {@link GryoMessageSerializerV1d0#GryoMessageSerializerV1d0(GryoMapper.Builder)}.
-     */
-    @Deprecated
-    public GryoMessageSerializerV1d0(final GryoMapper kryo) {
-        super(kryo);
+        super(kryo.version(GryoVersion.V1_0).create());
     }
 
     @Override

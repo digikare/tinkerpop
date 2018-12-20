@@ -717,6 +717,3 @@ class GraphSONSerializersV2d0 {
         }
     }
 }
-
-
-

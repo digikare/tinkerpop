@@ -17,8 +17,9 @@ specific language governing permissions and limitations
 under the License.
 '''
 
-from gremlin_python.structure.graph import Graph
+from gremlin_python.process.anonymous_traversal import traversal
 from gremlin_python.process.graph_traversal import __
+from gremlin_python.driver import serializer
 from gremlin_python.driver.driver_remote_connection import DriverRemoteConnection
 from radish import before, after, world
 
@@ -65,9 +66,19 @@ def prepare_static_traversal_source(features, marker):
 @before.each_scenario
 def prepare_traversal_source(scenario):
     # some tests create data - create a fresh remote to the empty graph and clear that graph prior to each test
-    remote = DriverRemoteConnection('ws://localhost:45940/gremlin', "ggraph")
+    if not("graphson" in world.config.user_data):
+        raise ValueError('test configuration requires setting of --user-data="graphson=*" to one of [v2,v3]')
+
+    if world.config.user_data["graphson"] == "v3":
+        s = serializer.GraphSONSerializersV3d0()
+    elif world.config.user_data["graphson"] == "v2":
+        s = serializer.GraphSONSerializersV2d0()
+    else:
+        raise ValueError('serializer set with --user-data="graphson=v2" must be one of [v2,v3]')
+
+    remote = DriverRemoteConnection('ws://localhost:45940/gremlin', "ggraph", message_serializer=s)
     scenario.context.remote_conn["empty"] = remote
-    g = Graph().traversal().withRemote(remote)
+    g = traversal().withRemote(remote)
     g.V().drop().iterate()
 
 
@@ -83,18 +94,18 @@ def close_static_traversal_source(features, marker):
 
 
 def __create_remote(server_graph_name):
-    return DriverRemoteConnection('ws://localhost:45940/gremlin', server_graph_name)
+    return DriverRemoteConnection('ws://localhost:45940/gremlin', server_graph_name, message_serializer=serializer.GraphSONSerializersV3d0())
 
 
 def __create_lookup_v(remote):
-    g = Graph().traversal().withRemote(remote)
+    g = traversal().withRemote(remote)
 
     # hold a map of name/vertex for use in asserting results
     return g.V().group().by('name').by(tail()).next()
 
 
 def __create_lookup_e(remote):
-    g = Graph().traversal().withRemote(remote)
+    g = traversal().withRemote(remote)
 
     # hold a map of the "name"/edge for use in asserting results - "name" in this context is in the form of
     # outgoingV-label->incomingV

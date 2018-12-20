@@ -18,7 +18,6 @@
  */
 package org.apache.tinkerpop.gremlin.server.handler;
 
-import com.codahale.metrics.Meter;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
@@ -28,12 +27,10 @@ import org.apache.tinkerpop.gremlin.groovy.engine.GremlinExecutor;
 import org.apache.tinkerpop.gremlin.server.Channelizer;
 import org.apache.tinkerpop.gremlin.server.Context;
 import org.apache.tinkerpop.gremlin.server.GraphManager;
-import org.apache.tinkerpop.gremlin.server.GremlinServer;
 import org.apache.tinkerpop.gremlin.server.OpProcessor;
 import org.apache.tinkerpop.gremlin.server.Settings;
 import org.apache.tinkerpop.gremlin.server.op.OpLoader;
 import org.apache.tinkerpop.gremlin.server.op.OpProcessorException;
-import org.apache.tinkerpop.gremlin.server.util.MetricManager;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
@@ -45,24 +42,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static com.codahale.metrics.MetricRegistry.name;
-
 /**
  * @author Stephen Mallette (http://stephen.genoprime.com)
  */
 @ChannelHandler.Sharable
 public class OpSelectorHandler extends MessageToMessageDecoder<RequestMessage> {
     private static final Logger logger = LoggerFactory.getLogger(OpSelectorHandler.class);
-
-    /**
-     * Captures the "error" count as a reportable metric for Gremlin Server.
-     *
-     * @deprecated As of release 3.1.1-incubating, not replaced. Direct usage is discouraged with sub-classes as
-     * error counts are captured more globally for error messages written down the pipeline to
-     * {@link GremlinResponseFrameEncoder}.
-     */
-    @Deprecated
-    static final Meter errorMeter = MetricManager.INSTANCE.getMeter(name(GremlinServer.class, "errors"));
 
     private final Settings settings;
     private final GraphManager graphManager;

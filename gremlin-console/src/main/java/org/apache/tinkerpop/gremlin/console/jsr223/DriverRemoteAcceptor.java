@@ -64,11 +64,6 @@ public class DriverRemoteAcceptor implements RemoteAcceptor {
     private static final String TOKEN_RESET = "reset";
     private static final String TOKEN_SHOW = "show";
 
-    /**
-     * @deprecated As of 3.1.3, replaced by "none" option
-     */
-    @Deprecated
-    private static final String TOKEN_MAX = "max";
     private static final String TOKEN_NONE = "none";
     private static final String TOKEN_TIMEOUT = "timeout";
     private static final String TOKEN_ALIAS = "alias";
@@ -134,10 +129,8 @@ public class DriverRemoteAcceptor implements RemoteAcceptor {
             final String errorMessage = "The timeout option expects a positive integer representing milliseconds or 'none' as an argument";
             if (arguments.size() != 1) throw new RemoteException(errorMessage);
             try {
-                // first check for MAX timeout then NONE and finally parse the config to int. "max" is now "deprecated"
-                // in the sense that it will no longer be promoted. support for it will be removed at a later date
-                timeout = arguments.get(0).equals(TOKEN_MAX) ? Integer.MAX_VALUE :
-                        arguments.get(0).equals(TOKEN_NONE) ? NO_TIMEOUT : Integer.parseInt(arguments.get(0));
+                // first check for MAX timeout then NONE and finally parse the config to int.
+                timeout = arguments.get(0).equals(TOKEN_NONE) ? NO_TIMEOUT : Integer.parseInt(arguments.get(0));
                 if (timeout < NO_TIMEOUT) throw new RemoteException("The value for the timeout cannot be less than " + NO_TIMEOUT);
                 return timeout == NO_TIMEOUT ? "Remote timeout is disabled" : "Set remote timeout to " + timeout + "ms";
             } catch (Exception ignored) {
@@ -180,17 +173,20 @@ public class DriverRemoteAcceptor implements RemoteAcceptor {
             if (inner.isPresent()) {
                 final ResponseException responseException = inner.get();
                 if (responseException.getResponseStatusCode() == ResponseStatusCode.SERVER_ERROR_SERIALIZATION)
-                    throw new RemoteException(String.format("Server could not serialize the result requested. Server error - %s. Note that the class must be serializable by the client and server for proper operation.", responseException.getMessage()));
+                    throw new RemoteException(String.format(
+                            "Server could not serialize the result requested. Server error - %s. Note that the class must be serializable by the client and server for proper operation.", responseException.getMessage()),
+                            responseException.getRemoteStackTrace().orElse(null));
                 else
-                    throw new RemoteException(responseException.getMessage());
+                    throw new RemoteException(responseException.getMessage(), responseException.getRemoteStackTrace().orElse(null));
             } else if (ex.getCause() != null) {
                 final Throwable rootCause = ExceptionUtils.getRootCause(ex);
                 if (rootCause instanceof TimeoutException)
                     throw new RemoteException("Host did not respond in a timely fashion - check the server status and submit again.");
                 else
                     throw new RemoteException(rootCause.getMessage());
-            } else
+            } else {
                 throw new RemoteException(ex.getMessage());
+            }
         }
     }
 

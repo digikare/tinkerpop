@@ -21,6 +21,7 @@ __author__ = 'Marko A. Rodriguez (http://markorodriguez.com)'
 
 from gremlin_python.process.graph_traversal import GraphTraversalSource
 from gremlin_python.process.traversal import TraversalStrategies
+import warnings
 
 
 class Graph(object):
@@ -29,6 +30,10 @@ class Graph(object):
             TraversalStrategies.global_cache[self.__class__] = TraversalStrategies()
 
     def traversal(self, traversal_source_class=None):
+        warnings.warn(
+            "As of release 3.3.5, replaced by the gremlin_python.process.anonymous_traversal.traversal() function.",
+            DeprecationWarning)
+
         if not traversal_source_class:
             traversal_source_class = GraphTraversalSource
         return traversal_source_class(self, TraversalStrategies.global_cache[self.__class__])
@@ -68,25 +73,30 @@ class Edge(Element):
 
 
 class VertexProperty(Element):
-    def __init__(self, id, label, value):
+    def __init__(self, id, label, value, vertex):
         Element.__init__(self, id, label)
         self.value = value
         self.key = self.label
+        self.vertex = vertex
 
     def __repr__(self):
         return "vp[" + str(self.label) + "->" + str(self.value)[0:20] + "]"
 
 
 class Property(object):
-    def __init__(self, key, value):
+    def __init__(self, key, value, element):
         self.key = key
         self.value = value
+        self.element = element
 
     def __repr__(self):
         return "p[" + str(self.key) + "->" + str(self.value)[0:20] + "]"
 
     def __eq__(self, other):
-        return isinstance(other, self.__class__) and self.key == other.key and self.value == other.value
+        return isinstance(other, self.__class__) and \
+               self.key == other.key and \
+               self.value == other.value and \
+               self.element == other.element
 
     def __hash__(self):
         return hash(self.key) + hash(self.value)

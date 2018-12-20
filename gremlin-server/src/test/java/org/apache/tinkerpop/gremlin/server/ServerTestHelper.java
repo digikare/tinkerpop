@@ -18,7 +18,10 @@
  */
 package org.apache.tinkerpop.gremlin.server;
 
+import org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin;
+
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -36,10 +39,14 @@ public class ServerTestHelper {
         final String homeDir = buildDir.substring(0, buildDir.indexOf("gremlin-server") + "gremlin-server".length()) +
                 File.separator + "src" + File.separator + "test" + File.separator +"scripts";
 
-        overridenSettings.scriptEngines.get("gremlin-groovy").scripts = overridenSettings.scriptEngines
-                .get("gremlin-groovy").scripts.stream()
-                .map(s -> new File(s).isAbsolute() ? s : homeDir + s.substring(s.lastIndexOf(File.separator)))
-                .collect(Collectors.toList());
+        if (overridenSettings.scriptEngines.get("gremlin-groovy").plugins.containsKey(ScriptFileGremlinPlugin.class.getName())) {
+            overridenSettings.scriptEngines.get("gremlin-groovy").
+                    plugins.get(ScriptFileGremlinPlugin.class.getName()).
+                    put("files", ((List<String>) overridenSettings.scriptEngines
+                            .get("gremlin-groovy").plugins.get(ScriptFileGremlinPlugin.class.getName()).get("files")).stream()
+                            .map(s -> new File(s).isAbsolute() ? s : homeDir + s.substring(s.lastIndexOf(File.separator)))
+                            .collect(Collectors.toList()));
+        }
 
         overridenSettings.graphs = overridenSettings.graphs.entrySet().stream()
                 .map(kv -> {

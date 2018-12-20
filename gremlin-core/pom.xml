@@ -20,10 +20,13 @@ limitations under the License.
     <parent>
         <groupId>org.apache.tinkerpop</groupId>
         <artifactId>tinkerpop</artifactId>
-        <version>3.2.10</version>
+        <version>3.3.5-SNAPSHOT</version>
     </parent>
     <artifactId>gremlin-core</artifactId>
     <name>Apache TinkerPop :: Gremlin Core</name>
+    <properties>
+        <revapi.skip>true</revapi.skip>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>org.apache.tinkerpop</groupId>
@@ -68,6 +71,11 @@ limitations under the License.
             <groupId>com.squareup</groupId>
             <artifactId>javapoet</artifactId>
             <version>1.8.0</version>
+        </dependency>
+        <dependency>
+            <groupId>net.objecthunter</groupId>
+            <artifactId>exp4j</artifactId>
+            <version>0.4.8</version>
         </dependency>
         <!-- LOGGING -->
         <dependency>

@@ -125,13 +125,13 @@ Feature: Step - select()
       | m[{"a": "lop", "b": "lop"}] |
       | m[{"a": "peter", "b": "peter"}] |
 
-  Scenario: g_V_hasXname_gremlinX_inEXusesX_order_byXskill_incrX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX
+  Scenario: g_V_hasXname_gremlinX_inEXusesX_order_byXskill_ascX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX
     Given the crew graph
     And the traversal of
       """
       g.V().has("name", "gremlin").
         inE("uses").
-        order().by("skill", Order.incr).as("a").
+        order().by("skill", Order.asc).as("a").
         outV().as("b").
         select("a", "b").
           by("skill").
@@ -516,6 +516,50 @@ Feature: Step - select()
       | d[2].l |
       | d[2].l |
 
+  Scenario: g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").group("m").by().by(__.bothE().count()).barrier().select("m").select(__.select("a"))
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | d[3].l |
+      | d[1].l |
+      | d[3].l |
+      | d[3].l |
+      | d[1].l |
+      | d[1].l |
+
+  Scenario: g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX_byXmathX_plus_XX
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").group("m").by().by(__.bothE().count()).barrier().select("m").select(__.select("a")).by(__.math("_+_"))
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | d[6].d |
+      | d[2].d |
+      | d[6].d |
+      | d[6].d |
+      | d[2].d |
+      | d[2].d |
+
+  Scenario: g_V_asXaX_outXknowsX_asXaX_selectXall_constantXaXX
+    Given the modern graph
+    And the traversal of
+      """
+      g.V().as("a").out("knows").as("a").select(Pop.all, __.constant("a"))
+      """
+    When iterated to list
+    Then the result should be unordered
+      | result |
+      | l[v[marko],v[vadas]] |
+      | l[v[marko],v[josh]] |
+
   Scenario: g_V_selectXaX
     Given the modern graph
     And the traversal of
@@ -680,6 +724,6 @@ Feature: Step - select()
     When iterated next
     Then the result should be ordered
       | result |
-      | l[a,b] |
-      | l[c]   |
+      | s[a,b] |
+      | s[c]   |
     And the graph should return 6 for count of "g.V().as(\"a\", \"b\").out().as(\"c\").path().select(Column.keys)"

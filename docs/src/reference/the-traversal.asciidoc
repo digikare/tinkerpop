@@ -206,6 +206,10 @@ g.V().match(
       addE('friendlyCollaborator').from('a').to('b').
         property(id,23).property('project',select('c').values('name')) <5>
 g.E(23).valueMap()
+marko = g.V().has('name','marko').next()
+peter = g.V().has('name','peter').next()
+g.V(marko).addE('knows').to(peter) <6>
+g.addE('knows').from(marko).to(peter) <7>
 ----
 
 <1> Add a co-developer edge with a year-property between marko and his collaborators.
@@ -214,10 +218,13 @@ g.E(23).valueMap()
 <4> The newly created edge is a traversable object.
 <5> Two arbitrary bindings in a traversal can be joined `from()`->`to()`, where `id` can be provided for graphs that
 supports user provided ids.
+<6> Add an edge between marko and peter given the directed (detached) vertex references.
+<7> Add an edge between marko and peter given the directed (detached) vertex references.
 
 *Additional References*
 
-link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#addE-java.lang.String-++[`addE(String)`]
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#addE-java.lang.String-++[`addE(String)`],
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#addE-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`addE(Traversal)`]
 
 [[addvertex-step]]
 === AddVertex Step
@@ -237,7 +244,8 @@ g.V().has('name','nothing').bothE()
 *Additional References*
 
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#addV--++[`addV()`],
-link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#addV-java.lang.String-++[`addV(String)`])
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#addV-java.lang.String-++[`addV(String)`],
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#addV-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`addV(Traversal)`]
 
 [[addproperty-step]]
 === AddProperty Step
@@ -825,7 +833,7 @@ means by which they are added. The general pattern is `step().from()`. See <<to-
 The list of steps that support `from()`-modulation are: <<simplepath-step,`simplePath()`>>, <<cyclicpath-step,`cyclicPath()`>>,
  <<path-step,`path()`>>, and <<addedge-step,`addE()`>>.
 
-[NOTE, caption=Javasacript]
+[NOTE, caption=Javascript]
 ====
 The term `from` is a reserved word in Javascript, and therefore must be referred to in Gremlin with `from_()`.
 ====
@@ -838,7 +846,8 @@ The term `from` is a reserved word in Python, and therefore must be referred to 
 *Additional References*
 
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#from-java.lang.String-++[`from(String)`],
-link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#from-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`from(Traversal)`]
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#from-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`from(Traversal)`],
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#from-org.apache.tinkerpop.gremlin.structure.Vertex-++[`from(Vertex)`]
 
 [[graph-step]]
 === Graph Step
@@ -1137,7 +1146,6 @@ The `limit()`-step is analogous to <<range-step,`range()`-step>> save that the l
 ----
 g.V().limit(2)
 g.V().range(0, 2)
-g.V().limit(2).toString()
 ----
 
 The `limit()`-step can also be applied with `Scope.local`, in which case it operates on the incoming collection.
@@ -1170,10 +1178,10 @@ Note that the examples below use the <<the-crew-toy-graph,The Crew>> toy data se
 [gremlin-groovy,theCrew]
 ----
 g.V().as('person').
-      properties('location').order().by('startTime',incr).limit(2).value().as('location').
+      properties('location').order().by('startTime',asc).limit(2).value().as('location').
       select('person','location').by('name').by() <1>
 g.V().as('person').
-      local(properties('location').order().by('startTime',incr).limit(2)).value().as('location').
+      local(properties('location').order().by('startTime',asc).limit(2)).value().as('location').
       select('person','location').by('name').by() <2>
 ----
 
@@ -1443,6 +1451,54 @@ path of the traverser in `match()`. As such, `where()`-steps in `match()` are us
 
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#match-org.apache.tinkerpop.gremlin.process.traversal.Traversal...-++[`match(Traversal...)`]
 
+[[math-step]]
+=== Math Step
+
+The `math()`-step (*math*) enables scientific calculator functionality within Gremlin. This step deviates from the common
+function composition and nesting formalisms to provide an easy to read string-based math processor. Variables within the
+equation map to scopes in Gremlin -- e.g. path labels, side-effects, or incoming map keys. This step supports
+`by()`-modulation where the `by()`-modulators are applied in the order in which the variables are first referenced
+within the equation. Note that the reserved variable `_` refers to the current numeric traverser object incoming to the
+`math()`-step.
+
+[gremlin-groovy,modern]
+----
+g.V().as('a').out('knows').as('b').math('a + b').by('age')
+g.V().as('a').out('created').as('b').
+  math('b + a').
+    by(both().count().math('_ + 100')).
+    by('age')
+g.withSideEffect('x',10).V().values('age').math('_ / x')
+g.withSack(1).V(1).repeat(sack(sum).by(constant(1))).times(10).emit().sack().math('sin _')
+----
+
+The operators supported by the calculator include: `*`, `+`, `\`, `^`, and `%`.
+Furthermore, the following built in functions are provided:
+
+* `abs`: absolute value
+* `acos`: arc cosine
+* `asin`: arc sine
+* `atan`: arc tangent
+* `cbrt`: cubic root
+* `ceil`: nearest upper integer
+* `cos`: cosine
+* `cosh`: hyperbolic cosine
+* `exp`: euler's number raised to the power (`e^x`)
+* `floor`: nearest lower integer
+* `log`: logarithmus naturalis (base e)
+* `log10`: logarithm (base 10)
+* `log2`: logarithm (base 2)
+* `sin`: sine
+* `sinh`: hyperbolic sine
+* `sqrt`: square root
+* `tan`: tangent
+* `tanh`: hyperbolic tangent
+* `signum`: signum function
+
+*Additional References*
+
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#math-java.lang.String-++[`math(String)`]
+
 [[max-step]]
 === Max Step
 
@@ -1507,6 +1563,21 @@ link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/grem
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#min-org.apache.tinkerpop.gremlin.process.traversal.Scope-++[`min(Scope)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/Scope.html++[`Scope`]
 
+[[none-step]]
+=== None Step
+
+The `none()`-step (*filter*) filters all objects from a traversal stream. It is especially useful for to traversals
+that are executed remotely where returning results is not useful and the traversal is only meant to generate
+side-effects. Choosing not to return results saves in serialization and network costs as the objects are filtered on
+the remote end and not returned to the client side. Typically, this step does not need to be used directly and is
+quietly used by the `iterate()` terminal step which appends `none()` to the traversal before actually cycling through
+results.
+
+*Additional References*
+
+link:++http://tinkerpop.apache.org/javadocs/current/core/org/apache/tinkerpop/gremlin/process/traversal/Traversal.html#none--++['none()']
+link:++http://tinkerpop.apache.org/javadocs/current/core/org/apache/tinkerpop/gremlin/process/traversal/Traversal.html#iterate--++['iterate()']
+
 [[not-step]]
 === Not Step
 
@@ -1532,7 +1603,7 @@ g.V().hasLabel('person').
 ----
 
 <1> josh created two projects and vadas none
- 
+
 *Additional References*
 
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#not-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`not(Traversal)`]
@@ -1550,7 +1621,7 @@ link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/grem
 [[optional-step]]
 === Optional Step
 
-The `optional()`-step (*map*) returns the result of the specified traversal if it yields a result else it returns the calling
+The `optional()`-step (*branch/flatMap*) returns the result of the specified traversal if it yields a result else it returns the calling
 element, i.e. the `identity()`.
 
 [gremlin-groovy,modern]
@@ -1559,14 +1630,14 @@ g.V(2).optional(out('knows')) <1>
 g.V(2).optional(__.in('knows')) <2>
 ----
 
-<1> vadas does not have an `out` "know" edge so vadas is returned.
-<2> vadas does have an `in` "knows" edge so marko is returned.
+<1> vadas does not have an outgoing knows-edge so vadas is returned.
+<2> vadas does have an incoming knows-edge so marko is returned.
 
 `optional` is particularly useful for lifting entire graphs when used in conjunction with `path` or `tree`.
 
 [gremlin-groovy,modern]
 ----
-g.V().hasLabel('person').optional(out("knows").optional(out("created"))).path() <1>
+g.V().hasLabel('person').optional(out('knows').optional(out('created'))).path() <1>
 ----
 
 <1> Returns the paths of everybody followed by who they know followed by what they created.
@@ -1617,8 +1688,8 @@ When the objects of the traversal stream need to be sorted, `order()`-step (*map
 [gremlin-groovy,modern]
 ----
 g.V().values('name').order()
-g.V().values('name').order().by(decr)
-g.V().hasLabel('person').order().by('age', incr).values('name')
+g.V().values('name').order().by(desc)
+g.V().hasLabel('person').order().by('age', asc).values('name')
 ----
 
 One of the most traversed objects in a traversal is an `Element`. An element can have properties associated with it
@@ -1628,8 +1699,8 @@ comparison of their properties.
 [gremlin-groovy,modern]
 ----
 g.V().values('name')
-g.V().order().by('name',incr).values('name')
-g.V().order().by('name',decr).values('name')
+g.V().order().by('name',asc).values('name')
+g.V().order().by('name',desc).values('name')
 ----
 
 The `order()`-step allows the user to provide an arbitrary number of comparators for primary, secondary, etc. sorting.
@@ -1638,10 +1709,10 @@ based on the age of the person.
 
 [gremlin-groovy,modern]
 ----
-g.V().hasLabel('person').order().by(outE('created').count(), incr).
-                                 by('age', incr).values('name')
-g.V().hasLabel('person').order().by(outE('created').count(), incr).
-                                 by('age', decr).values('name')
+g.V().hasLabel('person').order().by(outE('created').count(), asc).
+                                 by('age', asc).values('name')
+g.V().hasLabel('person').order().by(outE('created').count(), asc).
+                                 by('age', desc).values('name')
 ----
 
 Randomizing the order of the traversers at a particular point in the traversal is possible with `Order.shuffle`.
@@ -1657,10 +1728,10 @@ It is possible to use `order(local)` to order the current local object and not t
 
 [gremlin-groovy,modern]
 ----
-g.V().values('age').fold().order(local).by(decr) <1>
-g.V().values('age').order(local).by(decr) <2>
-g.V().groupCount().by(inE().count()).order(local).by(values, decr) <3>
-g.V().groupCount().by(inE().count()).order(local).by(keys, incr) <4>
+g.V().values('age').fold().order(local).by(desc) <1>
+g.V().values('age').order(local).by(desc) <2>
+g.V().groupCount().by(inE().count()).order(local).by(values, desc) <3>
+g.V().groupCount().by(inE().count()).order(local).by(keys, asc) <4>
 ----
 
 <1> The ages are gathered into a list and then that list is sorted in decreasing order.
@@ -1670,11 +1741,16 @@ g.V().groupCount().by(inE().count()).order(local).by(keys, incr) <4>
 
 NOTE: The `values` and `keys` enums are from `Column` which is used to select "columns" from a `Map`, `Map.Entry`, or `Path`.
 
+NOTE: Prior to version 3.3.4, ordering was defined by `Order.incr` for ascending order and `Order.decr` for descending
+order. That approach is now deprecated with the preferred method shown in the examples which uses the more common
+forms for query languages in `Order.asc` and Order.desc.
+
 *Additional References*
 
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#order--++[`order()`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#order-org.apache.tinkerpop.gremlin.process.traversal.Scope-++[`order(Scope)`],
-link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/Scope.html++[`Scope`]
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/Scope.html++[`Scope`],
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/Order.html++[`Order`]
 
 [[pagerank-step]]
 === PageRank Step
@@ -1691,7 +1767,7 @@ g.V().hasLabel('person').
   pageRank().
     by(outE('knows')).
     by('friendRank').
-  order().by('friendRank',decr).valueMap('name','friendRank')
+  order().by('friendRank',desc).valueMap('name','friendRank')
 ----
 
 The <<explain-step,`explain()`>>-step can be used to understand how the traversal is compiled into multiple `GraphComputer` jobs.
@@ -1703,7 +1779,7 @@ g.V().hasLabel('person').
   pageRank().
     by(outE('knows')).
     by('friendRank').
-  order().by('friendRank',decr).valueMap('name','friendRank').explain()
+  order().by('friendRank',desc).valueMap('name','friendRank').explain()
 ----
 
 *Additional References*
@@ -1862,7 +1938,7 @@ g.V().out('created').
   project('a','b').
     by('name').
     by(__.in('created').count()).
-  order().by(select('b'),decr).
+  order().by(select('b'),desc).
   select('a')
 g.V().has('name','marko').
                project('out','in').
@@ -1965,7 +2041,7 @@ Finally, an example is provided using `PageRankVertexProgram` which doesn't use 
 g = graph.traversal().withComputer()
 g.V().hasLabel('person').
   program(PageRankVertexProgram.build().property('rank').create(graph)).
-    order().by('rank', incr).
+    order().by('rank', asc).
   valueMap('name', 'rank')
 ----
 
@@ -2314,11 +2390,11 @@ ranking.
 graph.io(graphml()).readGraph('data/grateful-dead.xml')
 g = graph.traversal()
 g.V().hasLabel('song').out('followedBy').groupCount().by('name').
-      order(local).by(values,decr).limit(local, 5)
+      order(local).by(values,desc).limit(local, 5)
 g.V().hasLabel('song').out('followedBy').groupCount().by('name').
-      order(local).by(values,decr).limit(local, 5).select(keys)
+      order(local).by(values,desc).limit(local, 5).select(keys)
 g.V().hasLabel('song').out('followedBy').groupCount().by('name').
-      order(local).by(values,decr).limit(local, 5).select(keys).unfold()
+      order(local).by(values,desc).limit(local, 5).select(keys).unfold()
 ----
 
 Similarly, for extracting the values from a path or map.
@@ -2330,7 +2406,7 @@ g = graph.traversal()
 g.V().hasLabel('song').out('sungBy').groupCount().by('name') <1>
 g.V().hasLabel('song').out('sungBy').groupCount().by('name').select(values) <2>
 g.V().hasLabel('song').out('sungBy').groupCount().by('name').select(values).unfold().
-      groupCount().order(local).by(values,decr).limit(local, 5) <3>
+      groupCount().order(local).by(values,desc).limit(local, 5) <3>
 ----
 
 <1> Which artist sung how many songs?
@@ -2347,6 +2423,22 @@ g.V(1).as("a").repeat(out().as("a")).times(2).select(first, "a")
 g.V(1).as("a").repeat(out().as("a")).times(2).select(last, "a")
 g.V(1).as("a").repeat(out().as("a")).times(2).select(all, "a")
 ----
+
+In addition to the previously shown examples, where `select()` was used to select an element based on a static key, `select()` can also accept a traversal
+that emits a key.
+
+WARNING: Since the key used by `select(<traversal>)` cannot be determined at compile time, the `TraversalSelectStep` enables full path tracking.
+
+[gremlin-groovy,modern]
+----
+g.withSideEffect("alias", ["marko":"okram"]).V().  <1>
+  values("name").sack(assign).                     <2>
+  optional(select("alias").select(sack()))         <3>
+----
+
+<1> Inject a name alias map and start the traversal from all vertices.
+<2> Select all `name` values and store them as the current traverser's sack value.
+<3> Optionally select the alias for the current name from the injected map.
 
 [[using-where-with-select]]
 ==== Using Where with Select
@@ -2379,6 +2471,8 @@ link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/grem
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#select-org.apache.tinkerpop.gremlin.process.traversal.Pop-java.lang.String-++[`select(Pop,String)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#select-java.lang.String-++[`select(String)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#select-java.lang.String-java.lang.String-java.lang.String...-++[`select(String,String,String...)`],
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#select-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`select(Traversal)`],
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#select-org.apache.tinkerpop.gremlin.process.traversal.Pop-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`select(Pop,Traversal)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/structure/Column.html++[`Column`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/Pop.html++[`Pop`]
 
@@ -2434,6 +2528,40 @@ cross the vertices from the first path.
 *Additional References*
 
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#simplePath--++[`simplePath()`]
+
+[[skip-step]]
+=== Skip Step
+
+The `skip()`-step is analogous to <<range-step,`range()`-step>> save that the higher end range is set to -1.
+
+[gremlin-groovy,modern]
+----
+g.V().values('age').order()
+g.V().values('age').order().skip(2)
+g.V().values('age').order().range(2, -1)
+----
+
+The `skip()`-step can also be applied with `Scope.local`, in which case it operates on the incoming collection.
+
+[gremlin-groovy,modern]
+----
+g.V().hasLabel('person').filter(outE('created')).as('p'). <1>
+  map(out('created').values('name').fold()).
+  project('person','primary','other').
+    by(select('p').by('name')).
+    by(limit(local, 1)). <2>
+    by(skip(local, 1)) <3>
+----
+
+<1> For each person who created something...
+<2> ...select the first project (random order) as `primary` and...
+<3> ...select all other projects as `other`.
+
+*Additional References*
+
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#skip-long-++[`skip(long)`],
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#skip-org.apache.tinkerpop.gremlin.process.traversal.Scope-long-++[`skip(Scope,long)`],
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/Scope.html++[`Scope`]
 
 [[store-step]]
 === Store Step
@@ -2503,8 +2631,36 @@ t.sideEffects.get('knowsG').traversal().E()
 t.sideEffects.get('createdG').traversal().E()
 ----
 
-IMPORTANT: The `subgraph()`-step only writes to graphs that support user supplied ids for its elements. Moreover,
-if no graph is specified via `withSideEffect()`, then <<tinkergraph-gremlin,TinkerGraph>> is assumed.
+TinkerGraph is the ideal (and default) `Graph` into which a subgraph is extracted as it's fast, in-memory, and supports
+user-supplied identifiers which can be any Java object. It is this last feature that needs some focus as many
+TinkerPop-enabled graphs have complex identifier types and TinkerGraph's ability to consume those makes it a perfect
+host for an incoming subgraph. However care needs to be taken when using the elements of the TinkerGraph subgraph.
+The original graph's identifiers may be preserved, but the elements of the graph are now TinkerGraph objects like,
+`TinkerVertex` and `TinkerEdge`. As a result, they can not be used directly in Gremlin running against the original
+graph. For example, the following traversal would likely return an error:
+
+[source,text]
+----
+Vertex v = sg.V().has('name','marko').next();  <1>
+List<Vertex> vertices = g.V(v).out().toList(); <2>
+----
+
+<1> Here "sg" is a reference to a TinkerGraph subgraph and "v" is a `TinkerVertex`.
+<2> The `g.V(v)` has the potential to fail as "g" is the original `Graph` instance and not a TinkerGraph - it could
+reject the `TinkerVertex` instance as it will not recognize it.
+
+It is safer to wrap the `TinkerVertex` in a `ReferenceVertex` or simply reference the `id()` as follows:
+
+[source,text]
+----
+Vertex v = sg.V().has('name','marko').next();
+List<Vertex> vertices = g.V(v.id()).out().toList();
+
+// OR
+
+Vertex v = new ReferenceVertex(sg.V().has('name','marko').next());
+List<Vertex> vertices = g.V(v).out().toList();
+----
 
 *Additional References*
 
@@ -2572,7 +2728,7 @@ g.V().valueMap().tail(local) <4>
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#tail--++[`tail()`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#tail-long-++[`tail(long)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#tail-org.apache.tinkerpop.gremlin.process.traversal.Scope-++[`tail(Scope)`]
-link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#tail-org.apache.tinkerpop.gremlin.process.traversal.Scope-long-++[tail(Scope,long)`]
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#tail-org.apache.tinkerpop.gremlin.process.traversal.Scope-long-++[`tail(Scope,long)`]
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/Scope.html++[`Scope`]
 
 [[timelimit-step]]
@@ -2590,10 +2746,10 @@ that can be used to time execution of a body of code.
 
 [gremlin-groovy,modern]
 ----
-g.V().repeat(both().groupCount('m')).times(16).cap('m').order(local).by(values,decr).next()
-clock(1) {g.V().repeat(both().groupCount('m')).times(16).cap('m').order(local).by(values,decr).next()}
-g.V().repeat(timeLimit(2).both().groupCount('m')).times(16).cap('m').order(local).by(values,decr).next()
-clock(1) {g.V().repeat(timeLimit(2).both().groupCount('m')).times(16).cap('m').order(local).by(values,decr).next()}
+g.V().repeat(both().groupCount('m')).times(16).cap('m').order(local).by(values,desc).next()
+clock(1) {g.V().repeat(both().groupCount('m')).times(16).cap('m').order(local).by(values,desc).next()}
+g.V().repeat(timeLimit(2).both().groupCount('m')).times(16).cap('m').order(local).by(values,desc).next()
+clock(1) {g.V().repeat(timeLimit(2).both().groupCount('m')).times(16).cap('m').order(local).by(values,desc).next()}
 ----
 
 In essence, the relative order is respected, even through the number of traversers at each vertex is not. The primary
@@ -2615,12 +2771,13 @@ means by which they are added. The general pattern is `step().to()`. See <<from-
 
 The list of steps that support `to()`-modulation are: <<simplepath-step,`simplePath()`>>, <<cyclicpath-step,`cyclicPath()`>>,
  <<path-step,`path()`>>, and <<addedge-step,`addE()`>>.
- 
+
 *Additional References*
 
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#to-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`to(Direction,String...)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#to-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`to(String)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#to-org.apache.tinkerpop.gremlin.process.traversal.Traversal-++[`to(Traversal)`],
+link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#to-org.apache.tinkerpop.gremlin.structure.Vertex-++[`to(Vertex)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#toE-org.apache.tinkerpop.gremlin.structure.Direction-java.lang.String...-++[`toE(Direction,String)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/process/traversal/dsl/graph/GraphTraversal.html#toV-org.apache.tinkerpop.gremlin.structure.Direction-++[`toV(Direction)`],
 link:++http://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/structure/Direction.html++[`Direction`]
@@ -3027,6 +3184,11 @@ The `Scope` enum has two constants: `Scope.local` and `Scope.global`. Scope dete
 being scoped is with respects to the current object (`local`) at that step or to the entire stream of objects up to that
 step (`global`).
 
+[NOTE, caption=Python]
+====
+The term `global` is a reserved word in Python, and therefore a `Scope` using that term must be referred as `global_`.
+====
+
 [gremlin-groovy,modern]
 ----
 g.V().has('name','marko').out('knows').count() <1>
@@ -3059,7 +3221,7 @@ A few more examples of the use of `Scope` are provided below:
 ----
 g.V().both().group().by(label).select('software').dedup(local)
 g.V().groupCount().by(label).select(values).min(local)
-g.V().groupCount().by(label).order(local).by(values,decr)
+g.V().groupCount().by(label).order(local).by(values,desc)
 g.V().fold().sample(local,2)
 ----
 
@@ -3266,7 +3428,7 @@ g.V().hasLabel('person'). <1>
 <4> `InlineFilterStrategy` pulls out named predicates from `match()`-step to more easily allow provider strategies to use indices.
 <5> `RepeatUnrollStrategy` will unroll loops and `IncidentToAdjacentStrategy` will turn `outE().inV()`-patterns into `out()`.
 <6> `MatchPredicateStrategy` will pull in `where()`-steps so that they can be subjected to `match()`-steps runtime query optimizer.
-<7> `RangeByIsCountStrategy` will limit the traversal to only the number of traversers required for the `count().is(x)`-check.
+<7> `CountStrategy` will limit the traversal to only the number of traversers required for the `count().is(x)`-check.
 <8> `PathRetractionStrategy` will remove paths from the traversers and increase the likelihood of bulking as path data is not required after `select('b')`.
 <9> `AdjacentToIncidentStrategy` will turn `out()` into `outE()` to increase data access locality.
 
@@ -3324,6 +3486,7 @@ console session displays the basic usage:
 
 [gremlin-groovy]
 ----
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.event.*
 graph = TinkerFactory.createModern()
 l = new ConsoleMutationListener(graph)
 strategy = EventStrategy.build().addListener(l).create()

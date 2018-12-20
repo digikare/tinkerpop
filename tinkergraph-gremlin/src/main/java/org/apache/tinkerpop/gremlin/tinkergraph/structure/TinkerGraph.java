@@ -30,6 +30,8 @@ import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.io.Io;
 import org.apache.tinkerpop.gremlin.structure.io.IoCore;
+import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONVersion;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoVersion;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import org.apache.tinkerpop.gremlin.structure.util.GraphFactory;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
@@ -61,15 +63,8 @@ import java.util.stream.Stream;
  */
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_INTEGRATE)
-@Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_PERFORMANCE)
 @Graph.OptIn(Graph.OptIn.SUITE_PROCESS_STANDARD)
 @Graph.OptIn(Graph.OptIn.SUITE_PROCESS_COMPUTER)
-@Graph.OptIn(Graph.OptIn.SUITE_PROCESS_PERFORMANCE)
-@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_PROCESS_STANDARD)
-@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_PROCESS_COMPUTER)
-@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_ENVIRONMENT)
-@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_ENVIRONMENT_INTEGRATE)
-@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_ENVIRONMENT_PERFORMANCE)
 public final class TinkerGraph implements Graph {
 
     static {
@@ -82,37 +77,6 @@ public final class TinkerGraph implements Graph {
         this.setProperty(Graph.GRAPH, TinkerGraph.class.getName());
     }};
 
-    /**
-     * @deprecated As of release 3.1.0, replaced by {@link TinkerGraph#GREMLIN_TINKERGRAPH_VERTEX_ID_MANAGER}
-     */
-    @Deprecated
-    public static final String CONFIG_VERTEX_ID = "gremlin.tinkergraph.vertexIdManager";
-    /**
-     * @deprecated As of release 3.1.0, replaced by {@link TinkerGraph#GREMLIN_TINKERGRAPH_EDGE_ID_MANAGER}
-     */
-    @Deprecated
-    public static final String CONFIG_EDGE_ID = "gremlin.tinkergraph.edgeIdManager";
-    /**
-     * @deprecated As of release 3.1.0, replaced by {@link TinkerGraph#GREMLIN_TINKERGRAPH_VERTEX_PROPERTY_ID_MANAGER}
-     */
-    @Deprecated
-    public static final String CONFIG_VERTEX_PROPERTY_ID = "gremlin.tinkergraph.vertexPropertyIdManager";
-    /**
-     * @deprecated As of release 3.1.0, replaced by {@link TinkerGraph#GREMLIN_TINKERGRAPH_DEFAULT_VERTEX_PROPERTY_CARDINALITY}
-     */
-    @Deprecated
-    public static final String CONFIG_DEFAULT_VERTEX_PROPERTY_CARDINALITY = "gremlin.tinkergraph.defaultVertexPropertyCardinality";
-    /**
-     * @deprecated As of release 3.1.0, replaced by {@link TinkerGraph#GREMLIN_TINKERGRAPH_GRAPH_LOCATION}
-     */
-    @Deprecated
-    public static final String CONFIG_GRAPH_LOCATION = "gremlin.tinkergraph.graphLocation";
-    /**
-     * @deprecated As of release 3.1.0, replaced by {@link TinkerGraph#GREMLIN_TINKERGRAPH_GRAPH_FORMAT}
-     */
-    @Deprecated
-    public static final String CONFIG_GRAPH_FORMAT = "gremlin.tinkergraph.graphFormat";
-    ///////
     public static final String GREMLIN_TINKERGRAPH_VERTEX_ID_MANAGER = "gremlin.tinkergraph.vertexIdManager";
     public static final String GREMLIN_TINKERGRAPH_EDGE_ID_MANAGER = "gremlin.tinkergraph.edgeIdManager";
     public static final String GREMLIN_TINKERGRAPH_VERTEX_PROPERTY_ID_MANAGER = "gremlin.tinkergraph.vertexPropertyIdManager";
@@ -233,7 +197,12 @@ public final class TinkerGraph implements Graph {
 
     @Override
     public <I extends Io> I io(final Io.Builder<I> builder) {
-        return (I) builder.graph(this).onMapper(mapper -> mapper.addRegistry(TinkerIoRegistryV1d0.instance())).create();
+        if (builder.requiresVersion(GryoVersion.V1_0) || builder.requiresVersion(GraphSONVersion.V1_0))
+            return (I) builder.graph(this).onMapper(mapper -> mapper.addRegistry(TinkerIoRegistryV1d0.instance())).create();
+        else if (builder.requiresVersion(GraphSONVersion.V2_0))   // there is no gryo v2
+            return (I) builder.graph(this).onMapper(mapper -> mapper.addRegistry(TinkerIoRegistryV2d0.instance())).create();
+        else
+            return (I) builder.graph(this).onMapper(mapper -> mapper.addRegistry(TinkerIoRegistryV3d0.instance())).create();
     }
 
     @Override

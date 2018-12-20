@@ -41,13 +41,11 @@ public class TinkerGraphComputerProvider extends TinkerGraphProvider {
 
     @Override
     public GraphTraversalSource traversal(final Graph graph) {
-        return RANDOM.nextBoolean() ?
-                graph.traversal().withStrategies(VertexProgramStrategy.create(new MapConfiguration(new HashMap<String, Object>() {{
-                    put(VertexProgramStrategy.WORKERS, RANDOM.nextInt(Runtime.getRuntime().availableProcessors()) + 1);
-                    put(VertexProgramStrategy.GRAPH_COMPUTER, RANDOM.nextBoolean() ?
-                            GraphComputer.class.getCanonicalName() :
-                            TinkerGraphComputer.class.getCanonicalName());
-                }}))) :
-                graph.traversal(GraphTraversalSource.computer());
+        return graph.traversal().withStrategies(VertexProgramStrategy.create(new MapConfiguration(new HashMap<String, Object>() {{
+            put(VertexProgramStrategy.WORKERS, RANDOM.nextInt(Runtime.getRuntime().availableProcessors()) + 1);
+            put(VertexProgramStrategy.GRAPH_COMPUTER, RANDOM.nextBoolean() ?
+                    GraphComputer.class.getCanonicalName() :
+                    TinkerGraphComputer.class.getCanonicalName());
+        }})));
     }
 }

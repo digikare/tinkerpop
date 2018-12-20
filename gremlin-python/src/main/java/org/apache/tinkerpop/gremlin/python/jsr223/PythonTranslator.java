@@ -60,7 +60,6 @@ import java.util.stream.Stream;
  */
 public class PythonTranslator implements Translator.ScriptTranslator {
 
-    private static final boolean IS_TESTING = Boolean.valueOf(System.getProperty("is.testing", "false"));
     private static final Set<String> STEP_NAMES = Stream.of(GraphTraversal.class.getMethods()).filter(method -> Traversal.class.isAssignableFrom(method.getReturnType())).map(Method::getName).collect(Collectors.toSet());
     private static final Set<String> NO_STATIC = Stream.of(T.values(), Operator.values())
             .flatMap(arg -> IteratorUtils.stream(new ArrayIterator<>(arg)))
@@ -110,14 +109,13 @@ public class PythonTranslator implements Translator.ScriptTranslator {
         for (final Bytecode.Instruction instruction : bytecode.getInstructions()) {
             final String methodName = instruction.getOperator();
             final Object[] arguments = instruction.getArguments();
-            if (IS_TESTING &&
-                    instruction.getOperator().equals(TraversalSource.Symbols.withStrategies) &&
-                    instruction.getArguments()[0].toString().contains("TranslationStrategy"))
-                continue;
-            else if (0 == arguments.length)
+            if (0 == arguments.length)
                 traversalScript.append(".").append(resolveSymbol(methodName)).append("()");
             else if (methodName.equals("range") && 2 == arguments.length)
-                traversalScript.append("[").append(arguments[0]).append(":").append(arguments[1]).append("]");
+                if (((Number) arguments[0]).longValue() + 1 == ((Number) arguments[1]).longValue())
+                    traversalScript.append("[").append(arguments[0]).append("]");
+                else
+                    traversalScript.append("[").append(arguments[0]).append(":").append(arguments[1]).append("]");
             else if (methodName.equals("limit") && 1 == arguments.length)
                 traversalScript.append("[0:").append(arguments[0]).append("]");
             else if (methodName.equals("values") && 1 == arguments.length && traversalScript.length() > 3 && !STEP_NAMES.contains(arguments[0].toString()))
@@ -209,7 +207,7 @@ public class PythonTranslator implements Translator.ScriptTranslator {
                         convertToString(edge.outVertex()) + "," +
                         convertToString(edge.label()) + "," +
                         convertToString(edge.inVertex()) + ")";
-            } else { // VertexProperty
+            } else {
                 final VertexProperty vertexProperty = (VertexProperty) object;
                 return "VertexProperty(" + convertToString(vertexProperty.id()) + "," +
                         convertToString(vertexProperty.label()) + "," +

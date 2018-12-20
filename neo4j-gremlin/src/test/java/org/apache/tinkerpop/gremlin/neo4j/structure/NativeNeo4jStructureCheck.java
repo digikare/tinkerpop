@@ -19,13 +19,10 @@
 package org.apache.tinkerpop.gremlin.neo4j.structure;
 
 import org.apache.tinkerpop.gremlin.FeatureRequirement;
-import org.apache.tinkerpop.gremlin.groovy.jsr223.GremlinGroovyScriptEngine;
 import org.apache.tinkerpop.gremlin.neo4j.AbstractNeo4jGremlinTest;
 import org.apache.tinkerpop.gremlin.neo4j.process.traversal.LabelP;
 import org.apache.tinkerpop.gremlin.neo4j.structure.trait.MultiMetaNeo4jTrait;
 import org.apache.tinkerpop.gremlin.process.traversal.Traverser;
-import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
-import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
@@ -38,12 +35,14 @@ import org.neo4j.tinkerpop.api.Neo4jNode;
 import org.neo4j.tinkerpop.api.Neo4jRelationship;
 import org.neo4j.tinkerpop.api.Neo4jTx;
 
-import javax.script.Bindings;
-import javax.script.ScriptException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
@@ -128,48 +127,6 @@ public class NativeNeo4jStructureCheck extends AbstractNeo4jGremlinTest {
     }
 
     @Test
-    public void shouldEnsureTraverseRelationshipNeedsTx() throws ScriptException {
-        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine();
-        final Bindings bindings = engine.createBindings();
-        bindings.put("g", graph.traversal());
-        bindings.put("#jsr223.groovy.engine.keep.globals", "phantom");
-
-        Vertex marko = this.graph.addVertex(T.label, "Person", "name", "marko");
-        Vertex john = this.graph.addVertex(T.label, "Person", "name", "john");
-        Vertex pete = this.graph.addVertex(T.label, "Person", "name", "pete");
-        marko.addEdge("friend", john);
-        marko.addEdge("friend", pete);
-        this.graph.tx().commit();
-
-        Object result = engine.eval("g.V(" + marko.id().toString() + ").outE('friend')", bindings);
-        assertTrue(result instanceof GraphTraversal);
-
-        this.graph.tx().commit();
-        assertEquals(2L, ((GraphTraversal) result).count().next());
-    }
-
-    @Test
-    public void shouldEnsureTraversalOfVerticesNeedsTx() throws ScriptException {
-        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine();
-        final Bindings bindings = engine.createBindings();
-        bindings.put("g", graph.traversal());
-        bindings.put("#jsr223.groovy.engine.keep.globals", "phantom");
-
-        Vertex marko = this.graph.addVertex(T.label, "Person", "name", "marko");
-        Vertex john = this.graph.addVertex(T.label, "Person", "name", "john");
-        Vertex pete = this.graph.addVertex(T.label, "Person", "name", "pete");
-        marko.addEdge("friend", john);
-        marko.addEdge("friend", pete);
-        this.graph.tx().commit();
-
-        Object result = engine.eval("g.V(" + marko.id().toString() + ").out('friend')", bindings);
-        assertTrue(result instanceof GraphTraversal);
-
-        this.graph.tx().commit();
-        assertEquals(2L, ((GraphTraversal) result).count().next());
-    }
-
-    @Test
     public void shouldDoLabelSearch() {
         this.graph.addVertex(T.label, "Person", "name", "marko");
         this.graph.addVertex(T.label, "Person", "name", "john");
@@ -240,7 +197,7 @@ public class NativeNeo4jStructureCheck extends AbstractNeo4jGremlinTest {
             // assertEquals(1, b.properties("location").count().next().intValue());
             assertEquals(0, g.E().count().next().intValue());
 
-            assertEquals(4l, this.getBaseGraph().execute("MATCH n RETURN COUNT(n)", null).next().get("COUNT(n)"));
+            assertEquals(4l, this.getBaseGraph().execute("MATCH (n) RETURN COUNT(n)", null).next().get("COUNT(n)"));
             assertEquals(2l, this.getBaseGraph().execute("MATCH (n)-[r]->(m) RETURN COUNT(r)", null).next().get("COUNT(r)"));
             assertEquals(2l, this.getBaseGraph().execute("MATCH (a)-[r]->() WHERE id(a) = " + a.id() + " RETURN COUNT(r)", null).next().get("COUNT(r)"));
             final AtomicInteger counter = new AtomicInteger(0);
@@ -249,8 +206,8 @@ public class NativeNeo4jStructureCheck extends AbstractNeo4jGremlinTest {
                 counter.incrementAndGet();
             });
             assertEquals(2, counter.getAndSet(0));
-            this.getBaseGraph().execute("MATCH (a)-[]->(m) WHERE id(a) = " + a.id() + " RETURN labels(m)", null).forEachRemaining(results -> {
-                assertEquals(VertexProperty.DEFAULT_LABEL, ((List<String>) results.get("labels(m)")).get(0));
+            this.getBaseGraph().execute("MATCH (a)-->(m) WHERE id(a) = " + a.id() + " RETURN labels(m)", null).forEachRemaining(results -> {
+                assertEquals(true, ((List<String>) results.get("labels(m)")).contains(VertexProperty.DEFAULT_LABEL));
                 counter.incrementAndGet();
             });
             assertEquals(2, counter.getAndSet(0));
@@ -277,7 +234,7 @@ public class NativeNeo4jStructureCheck extends AbstractNeo4jGremlinTest {
             //  assertEquals(1, b.properties("name").count().next().intValue());
             // assertEquals(1, b.properties("location").count().next().intValue());
             assertEquals(0, g.E().count().next().intValue());
-            assertEquals(2l, this.getBaseGraph().execute("MATCH n RETURN COUNT(n)", null).next().get("COUNT(n)"));
+            assertEquals(2l, this.getBaseGraph().execute("MATCH (n) RETURN COUNT(n)", null).next().get("COUNT(n)"));
             assertEquals(0l, this.getBaseGraph().execute("MATCH (n)-[r]->(m) RETURN COUNT(r)", null).next().get("COUNT(r)"));
 
             assertEquals(1, IteratorUtils.count(a.getBaseVertex().getKeys()));
@@ -293,7 +250,7 @@ public class NativeNeo4jStructureCheck extends AbstractNeo4jGremlinTest {
             //    assertEquals(0, a.properties().count().next().intValue());
             //   assertEquals(2, b.properties().count().next().intValue());
             assertEquals(0, g.E().count().next().intValue());
-            assertEquals(2l, this.getBaseGraph().execute("MATCH n RETURN COUNT(n)", null).next().get("COUNT(n)"));
+            assertEquals(2l, this.getBaseGraph().execute("MATCH (n) RETURN COUNT(n)", null).next().get("COUNT(n)"));
             assertEquals(0l, this.getBaseGraph().execute("MATCH (n)-[r]->(m) RETURN COUNT(r)", null).next().get("COUNT(r)"));
             assertEquals(0, IteratorUtils.count(a.getBaseVertex().getKeys()));
             assertEquals(2, IteratorUtils.count(b.getBaseVertex().getKeys()));
@@ -308,7 +265,7 @@ public class NativeNeo4jStructureCheck extends AbstractNeo4jGremlinTest {
             // assertEquals(1, b.properties("location").count().next().intValue());
             assertEquals(0, g.E().count().next().intValue());
 
-            assertEquals(3l, this.getBaseGraph().execute("MATCH n RETURN COUNT(n)", null).next().get("COUNT(n)"));
+            assertEquals(3l, this.getBaseGraph().execute("MATCH (n) RETURN COUNT(n)", null).next().get("COUNT(n)"));
             assertEquals(1l, this.getBaseGraph().execute("MATCH (n)-[r]->(m) RETURN COUNT(r)", null).next().get("COUNT(r)"));
             assertEquals(1l, this.getBaseGraph().execute("MATCH (a)-[r]->() WHERE id(a) = " + a.id() + " RETURN COUNT(r)", null).next().get("COUNT(r)"));
             final AtomicInteger counter = new AtomicInteger(0);
@@ -317,8 +274,8 @@ public class NativeNeo4jStructureCheck extends AbstractNeo4jGremlinTest {
                 counter.incrementAndGet();
             });
             assertEquals(1, counter.getAndSet(0));
-            this.getBaseGraph().execute("MATCH (a)-[]->(m) WHERE id(a) = " + a.id() + " RETURN labels(m)", null).forEachRemaining(results -> {
-                assertEquals(VertexProperty.DEFAULT_LABEL, ((List<String>) results.get("labels(m)")).get(0));
+            this.getBaseGraph().execute("MATCH (a)-->(m) WHERE id(a) = " + a.id() + " RETURN labels(m)", null).forEachRemaining(results -> {
+                assertEquals(true, ((List<String>) results.get("labels(m)")).contains(VertexProperty.DEFAULT_LABEL));
                 counter.incrementAndGet();
             });
             assertEquals(1, counter.getAndSet(0));
@@ -352,7 +309,7 @@ public class NativeNeo4jStructureCheck extends AbstractNeo4jGremlinTest {
             //assertEquals(1, b.properties("location").count().next().intValue());
             assertEquals(0, g.E().count().next().intValue());
 
-            assertEquals(3l, this.getBaseGraph().execute("MATCH n RETURN COUNT(n)", null).next().get("COUNT(n)"));
+            assertEquals(3l, this.getBaseGraph().execute("MATCH (n) RETURN COUNT(n)", null).next().get("COUNT(n)"));
             assertEquals(1l, this.getBaseGraph().execute("MATCH (n)-[r]->(m) RETURN COUNT(r)", null).next().get("COUNT(r)"));
             assertEquals(1l, this.getBaseGraph().execute("MATCH (a)-[r]->() WHERE id(a) = " + a.id() + " RETURN COUNT(r)", null).next().get("COUNT(r)"));
             final AtomicInteger counter = new AtomicInteger(0);
@@ -361,8 +318,8 @@ public class NativeNeo4jStructureCheck extends AbstractNeo4jGremlinTest {
                 counter.incrementAndGet();
             });
             assertEquals(1, counter.getAndSet(0));
-            this.getBaseGraph().execute("MATCH (a)-[]->(m) WHERE id(a) = " + a.id() + " RETURN labels(m)", null).forEachRemaining(results -> {
-                assertEquals(VertexProperty.DEFAULT_LABEL, ((List<String>) results.get("labels(m)")).get(0));
+            this.getBaseGraph().execute("MATCH (a)-->(m) WHERE id(a) = " + a.id() + " RETURN labels(m)", null).forEachRemaining(results -> {
+                assertEquals(true, ((List<String>) results.get("labels(m)")).contains(VertexProperty.DEFAULT_LABEL));
                 counter.incrementAndGet();
             });
             assertEquals(1, counter.getAndSet(0));

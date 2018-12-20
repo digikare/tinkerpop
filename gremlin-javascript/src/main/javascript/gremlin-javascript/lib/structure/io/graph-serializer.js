@@ -160,8 +160,11 @@ const deserializers = {
   'g:Edge': typeSerializers.EdgeSerializer,
   'g:VertexProperty': typeSerializers.VertexPropertySerializer,
   'g:Property': typeSerializers.PropertySerializer,
-  'g:Path': typeSerializers.PathSerializer,
-  'g:T': typeSerializers.TSerializer
+  'g:Path': typeSerializers.Path3Serializer,
+  'g:T': typeSerializers.TSerializer,
+  'g:List': typeSerializers.ListSerializer,
+  'g:Set': typeSerializers.SetSerializer,
+  'g:Map': typeSerializers.MapSerializer
 };
 
 const serializers = [
@@ -174,7 +177,9 @@ const serializers = [
   typeSerializers.EnumSerializer,
   typeSerializers.VertexSerializer,
   typeSerializers.EdgeSerializer,
-  typeSerializers.LongSerializer
+  typeSerializers.LongSerializer,
+  typeSerializers.ListSerializer,
+  typeSerializers.MapSerializer
 ];
 
 module.exports = {

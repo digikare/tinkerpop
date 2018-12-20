@@ -2482,10 +2482,10 @@ public class GraphComputerTest extends AbstractGremlinProcessTest {
 
     ///////////////////////////////////
 
+    
     @Test
     @LoadGraphWith(MODERN)
     public void shouldSucceedWithProperTraverserRequirements() throws Exception {
-
         final VertexProgramQ vp = VertexProgramQ.build().property("pl").create();
         final Map<String, List<Integer>> expected = new HashMap<>();
         expected.put("vadas", Collections.singletonList(2));
@@ -2560,10 +2560,6 @@ public class GraphComputerTest extends AbstractGremlinProcessTest {
                     ConfigurationUtils.append(graph.configuration().subset(VERTEX_PROGRAM_Q_CFG_PREFIX), configuration);
                 }
                 return (VertexProgramQ) VertexProgram.createVertexProgram(graph, configuration);
-            }
-
-            public VertexProgramQ create() {
-                return create(null);
             }
 
             public Builder property(final String name) {
@@ -2863,10 +2859,6 @@ public class GraphComputerTest extends AbstractGremlinProcessTest {
                     ConfigurationUtils.append(graph.configuration().subset(SIMPLE_VERTEX_PROGRAM_CFG_PREFIX), configuration);
                 }
                 return (VertexProgramR) VertexProgram.createVertexProgram(graph, configuration);
-            }
-
-            public VertexProgramR create() {
-                return create(null);
             }
 
             public Builder direction(final Direction direction) {

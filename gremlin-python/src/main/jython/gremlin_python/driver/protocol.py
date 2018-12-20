@@ -65,12 +65,17 @@ class GremlinServerWSProtocol(AbstractBaseProtocol):
             request_id, request_message)
         self._transport.write(message)
 
-    def data_received(self, data, results_dict):
-        data = json.loads(data.decode('utf-8'))
-        request_id = data['requestId']
+    def data_received(self, message, results_dict):
+        # if Gremlin Server cuts off then we get a None for the message
+        if message is None:
+            raise GremlinServerError("Server disconnected - please try to reconnect")
+
+        message = self._message_serializer.deserialize_message(json.loads(message.decode('utf-8')))
+        request_id = message['requestId']
         result_set = results_dict[request_id]
-        status_code = data['status']['code']
-        aggregate_to = data['result']['meta'].get('aggregateTo', 'list')
+        status_code = message['status']['code']
+        aggregate_to = message['result']['meta'].get('aggregateTo', 'list')
+        data = message['result']['data']
         result_set.aggregate_to = aggregate_to
         if status_code == 407:
             auth = b''.join([b'\x00', self._username.encode('utf-8'),
@@ -87,15 +92,11 @@ class GremlinServerWSProtocol(AbstractBaseProtocol):
             del results_dict[request_id]
             return status_code
         elif status_code in [200, 206]:
-            results = []
-            for msg in data["result"]["data"]:
-                results.append(
-                    self._message_serializer.deserialize_message(msg))
-            result_set.stream.put_nowait(results)
+            result_set.stream.put_nowait(data)
             if status_code == 200:
                 del results_dict[request_id]
             return status_code
         else:
             del results_dict[request_id]
             raise GremlinServerError(
-                "{0}: {1}".format(status_code, data["status"]["message"]))
+                "{0}: {1}".format(status_code, message["status"]["message"]))

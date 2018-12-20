@@ -28,7 +28,7 @@ limitations under the License.
 <dependency>
   <groupId>org.neo4j</groupId>
   <artifactId>neo4j-tinkerpop-api-impl</artifactId>
-  <version>0.3-2.3.3</version>
+  <version>0.7-3.2.3</version>
 </dependency>
 ----
 
@@ -57,7 +57,8 @@ gremlin> graph = Neo4jGraph.open('/tmp/neo4j')
 
 TIP: To host Neo4j in <<gremlin-server,Gremlin Server>>, the dependencies must first be "installed" or otherwise
 copied to the Gremlin Server path. The automated method for doing this would be to execute
-`bin/gremlin-server.sh -i org.apache.tinkerpop neo4j-gremlin x.y.z`.
+`bin/gremlin-server.sh install org.apache.tinkerpop neo4j-gremlin x.y.z`. Once installed, the Gremlin Server
+configuration file must be edited to include the `Neo4jGremlinPlugin` as shown in `conf/gremlin-server.neo4j`.
 
 === Indices
 
@@ -249,8 +250,8 @@ graph.close()
 
 gremlin.graph=org.apache.tinkerpop.gremlin.neo4j.structure.Neo4jGraph
 gremlin.neo4j.directory=/tmp/neo4j
-gremlin.neo4j.conf.node_auto_indexing=true
-gremlin.neo4j.conf.relationship_auto_indexing=true
+gremlin.neo4j.conf.dbms.auto_index.nodes.enabled=true
+gremlin.neo4j.conf.dbms.auto_index.relationships.enabled=true
 ----
 
 === High Availability Configuration
@@ -275,8 +276,8 @@ gremlin.graph=org.apache.tinkerpop.gremlin.neo4j.structure.Neo4jGraph
 gremlin.neo4j.directory=/tmp/neo4j.server1
 gremlin.neo4j.conf.ha.server_id=1
 gremlin.neo4j.conf.ha.initial_hosts=localhost:5001\,localhost:5002\,localhost:5003
-gremlin.neo4j.conf.ha.cluster_server=localhost:5001
-gremlin.neo4j.conf.ha.server=localhost:6001
+gremlin.neo4j.conf.ha.host.coordination=localhost:5001
+gremlin.neo4j.conf.ha.host.data=localhost:6001
 ----
 
 Assuming the intent is to configure this cluster completely within TinkerPop (perhaps within three separate Gremlin
@@ -288,8 +289,8 @@ gremlin.graph=org.apache.tinkerpop.gremlin.neo4j.structure.Neo4jGraph
 gremlin.neo4j.directory=/tmp/neo4j.server2
 gremlin.neo4j.conf.ha.server_id=2
 gremlin.neo4j.conf.ha.initial_hosts=localhost:5001\,localhost:5002\,localhost:5003
-gremlin.neo4j.conf.ha.cluster_server=localhost:5002
-gremlin.neo4j.conf.ha.server=localhost:6002
+gremlin.neo4j.conf.ha.host.coordination=localhost:5002
+gremlin.neo4j.conf.ha.host.data=localhost:6002
 ----
 
 and the third will be:
@@ -300,8 +301,8 @@ gremlin.graph=org.apache.tinkerpop.gremlin.neo4j.structure.Neo4jGraph
 gremlin.neo4j.directory=/tmp/neo4j.server3
 gremlin.neo4j.conf.ha.server_id=3
 gremlin.neo4j.conf.ha.initial_hosts=localhost:5001\,localhost:5002\,localhost:5003
-gremlin.neo4j.conf.ha.cluster_server=localhost:5003
-gremlin.neo4j.conf.ha.server=localhost:6003
+gremlin.neo4j.conf.ha.host.coordination=localhost:5003
+gremlin.neo4j.conf.ha.host.data=localhost:6003
 ----
 
 IMPORTANT: The backslashes in the values provided to `gremlin.neo4j.conf.ha.initial_hosts` prevent that configuration

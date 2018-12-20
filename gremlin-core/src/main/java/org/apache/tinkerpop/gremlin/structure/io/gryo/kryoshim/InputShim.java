@@ -30,11 +30,13 @@ public interface InputShim {
 
     public String readString();
 
+    public short readShort();
+
     public long readLong();
 
     public int readInt();
 
-    public short readShort();
+    public boolean readBoolean();
 
     public double readDouble();
 }

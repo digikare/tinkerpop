@@ -76,47 +76,47 @@ Feature: Step - pageRank()
       | lop    |
       | ripple |
 
-  Scenario: g_V_pageRank_byXoutEXknowsXX_byXfriendRankX_valueMapXname_friendRankX
+  Scenario: g_V_pageRank_byXoutEXknowsXX_byXfriendRankX_project_byXnameX_byXvaluesXfriendRankX_mathX
     Given the modern graph
     And the traversal of
       """
-      g.withComputer().V().pageRank().by(__.outE("knows")).by("friendRank").valueMap("name", "friendRank")
+      g.withComputer().V().pageRank().by(__.outE("knows")).by("friendRank").project("name", "friendRank").by("name").by(__.values("friendRank").math("ceil(_ * 100)"))
       """
     When iterated to list
     Then the result should be unordered
       | result |
-      | m[{"name": ["marko"], "friendRank": [0.15000000000000002]}] |
-      | m[{"name": ["vadas"], "friendRank": [0.21375000000000002]}] |
-      | m[{"name": ["lop"], "friendRank": [0.15000000000000002]}] |
-      | m[{"name": ["josh"], "friendRank": [0.21375000000000002]}] |
-      | m[{"name": ["ripple"], "friendRank": [0.15000000000000002]}] |
-      | m[{"name": ["peter"], "friendRank": [0.15000000000000002]}] |
+      | m[{"name": "marko", "friendRank": 15.0}] |
+      | m[{"name": "vadas", "friendRank": 21.0}] |
+      | m[{"name": "lop", "friendRank": 15.0}] |
+      | m[{"name": "josh", "friendRank": 21.0}] |
+      | m[{"name": "ripple", "friendRank": 15.0}] |
+      | m[{"name": "peter", "friendRank": 15.0}] |
 
-  Scenario: g_V_hasLabelXpersonX_pageRank_byXpageRankX_order_byXpageRankX_valueMapXname_pageRankX
+  Scenario: g_V_hasLabelXpersonX_pageRank_byXpageRankX_project_byXnameX_byXvaluesXpageRankX_mathX
     Given the modern graph
     And the traversal of
       """
-      g.withComputer().V().hasLabel("person").pageRank().by("pageRank").order().by("pageRank").valueMap("name", "pageRank")
+      g.withComputer().V().hasLabel("person").pageRank().by("pageRank").project("name", "pageRank").by("name").by(__.values("pageRank").math("ceil(_ * 100)"))
       """
     When iterated to list
     Then the result should be unordered
       | result |
-      | m[{"name": ["marko"], "pageRank": [0.15000000000000002]}] |
-      | m[{"name": ["vadas"], "pageRank": [0.19250000000000003]}] |
-      | m[{"name": ["josh"], "pageRank": [0.19250000000000003]}] |
-      | m[{"name": ["peter"], "pageRank": [0.15000000000000002]}] |
+      | m[{"name": "marko", "pageRank": 46.0}] |
+      | m[{"name": "vadas", "pageRank": 59.0}] |
+      | m[{"name": "josh", "pageRank": 59.0}] |
+      | m[{"name": "peter", "pageRank": 46.0}] |
 
-  Scenario: g_V_pageRank_byXpageRankX_asXaX_outXknowsX_pageRank_asXbX_selectXa_bX
+  Scenario: g_V_pageRank_byXpageRankX_asXaX_outXknowsX_pageRank_asXbX_selectXa_bX_by_byXmathX
     Given the modern graph
     And the traversal of
       """
-      g.withComputer().V().pageRank().by("pageRank").as("a").out("knows").values("pageRank").as("b").select("a", "b")
+      g.withComputer().V().pageRank().by("pageRank").as("a").out("knows").values("pageRank").as("b").select("a", "b").by().by(__.math("ceil(_ * 100)"))
       """
     When iterated to list
     Then the result should be unordered
       | result |
-      | m[{"a": "v[marko]", "b": 0.19250000000000003}] |
-      | m[{"a": "v[marko]", "b": 0.19250000000000003}] |
+      | m[{"a": "v[marko]", "b": 15.0}] |
+      | m[{"a": "v[marko]", "b": 15.0}] |
 
   Scenario: g_V_hasLabelXsoftwareX_hasXname_rippleX_pageRankX1X_byXinEXcreatedXX_timesX1X_byXpriorsX_inXcreatedX_unionXboth__identityX_valueMapXname_priorsX
     Given the modern graph

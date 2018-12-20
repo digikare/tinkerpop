@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.apache.tinkerpop.gremlin.LoadGraphWith.GraphData.CREW;
 import static org.apache.tinkerpop.gremlin.LoadGraphWith.GraphData.MODERN;
@@ -72,7 +73,7 @@ public abstract class SelectTest extends AbstractGremlinProcessTest {
 
     public abstract Traversal<Vertex, Map<String, String>> get_g_V_asXaX_name_order_asXbX_selectXa_bX_byXnameX_by_XitX();
 
-    public abstract Traversal<Vertex, Map<String, Object>> get_g_V_hasXname_gremlinX_inEXusesX_order_byXskill_incrX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX();
+    public abstract Traversal<Vertex, Map<String, Object>> get_g_V_hasXname_gremlinX_inEXusesX_order_byXskill_ascX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX();
 
     public abstract Traversal<Vertex, Vertex> get_g_V_hasXname_isXmarkoXX_asXaX_selectXaX();
 
@@ -81,6 +82,12 @@ public abstract class SelectTest extends AbstractGremlinProcessTest {
     public abstract Traversal<Vertex, Map<String, Object>> get_g_V_hasLabelXpersonX_asXpX_mapXbothE_label_groupCountX_asXrX_selectXp_rX();
 
     public abstract Traversal<Vertex, Vertex> get_g_V_chooseXoutE_count_isX0X__asXaX__asXbXX_chooseXselectXaX__selectXaX__selectXbXX();
+
+    public abstract Traversal<Vertex, Long> get_g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX();
+
+    public abstract Traversal<Vertex, Double> get_g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX_byXmathX_plus_XX();
+
+    public abstract Traversal<Vertex, List<Vertex>> get_g_V_asXaX_outXknowsX_asXaX_selectXall_constantXaXX();
 
     public abstract Traversal<Vertex, Long> get_g_V_selectXaX_count();
 
@@ -169,9 +176,6 @@ public abstract class SelectTest extends AbstractGremlinProcessTest {
     public abstract Traversal<Vertex, Collection<Set<String>>> get_g_V_asXa_bX_out_asXcX_path_selectXkeysX();
 
     public abstract Traversal<Vertex, Map<String, String>> get_g_V_asXaX_outXknowsX_asXbX_localXselectXa_bX_byXnameXX();
-
-    // Useful for permuting Pop use cases
-    protected final static List<Pop> POPS = Arrays.asList(null, Pop.first, Pop.last, Pop.all);
 
     @Test
     @LoadGraphWith(MODERN)
@@ -276,8 +280,8 @@ public abstract class SelectTest extends AbstractGremlinProcessTest {
 
     @Test
     @LoadGraphWith(CREW)
-    public void g_V_hasXname_gremlinX_inEXusesX_order_byXskill_incrX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX() {
-        final Traversal<Vertex, Map<String, Object>> traversal = get_g_V_hasXname_gremlinX_inEXusesX_order_byXskill_incrX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX();
+    public void g_V_hasXname_gremlinX_inEXusesX_order_byXskill_ascX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX() {
+        final Traversal<Vertex, Map<String, Object>> traversal = get_g_V_hasXname_gremlinX_inEXusesX_order_byXskill_ascX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX();
         printTraversalForm(traversal);
         final List<Map<String, Object>> expected = makeMapList(2,
                 "a", 3, "b", "matthias",
@@ -367,6 +371,33 @@ public abstract class SelectTest extends AbstractGremlinProcessTest {
         assertEquals(6, counter);
         assertEquals(3, yCounter);
         assertEquals(3, xCounter);
+    }
+
+    @Test
+    @LoadGraphWith(MODERN)
+    public void g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX() {
+        final Traversal<Vertex, Long> traversal = get_g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX();
+        printTraversalForm(traversal);
+        checkResults(Arrays.asList(3L, 1L, 3L, 3L, 1L, 1L), traversal);
+    }
+
+    @Test
+    @LoadGraphWith(MODERN)
+    public void g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX_byXmathX_plus_XX() {
+        final Traversal<Vertex, Double> traversal = get_g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX_byXmathX_plus_XX();
+        printTraversalForm(traversal);
+        checkResults(Arrays.asList(6D, 2D, 6D, 6D, 2D, 2D), traversal);
+    }
+
+    @Test
+    @LoadGraphWith(MODERN)
+    public void g_V_asXaX_outXknowsX_asXaX_selectXall_constantXaXX() {
+        final Vertex marko = convertToVertex(graph, "marko");
+        final Vertex vadas = convertToVertex(graph, "vadas");
+        final Vertex josh = convertToVertex(graph, "josh");
+        final Traversal<Vertex, List<Vertex>> traversal = get_g_V_asXaX_outXknowsX_asXaX_selectXall_constantXaXX();
+        printTraversalForm(traversal);
+        checkResults(Arrays.asList(Arrays.asList(marko, vadas), Arrays.asList(marko, josh)), traversal);
     }
 
     @Test
@@ -822,8 +853,8 @@ public abstract class SelectTest extends AbstractGremlinProcessTest {
         }
 
         @Override
-        public Traversal<Vertex, Map<String, Object>> get_g_V_hasXname_gremlinX_inEXusesX_order_byXskill_incrX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX() {
-            return g.V().has("name", "gremlin").inE("uses").order().by("skill", Order.incr).as("a").outV().as("b").select("a", "b").by("skill").by("name");
+        public Traversal<Vertex, Map<String, Object>> get_g_V_hasXname_gremlinX_inEXusesX_order_byXskill_ascX_asXaX_outV_asXbX_selectXa_bX_byXskillX_byXnameX() {
+            return g.V().has("name", "gremlin").inE("uses").order().by("skill", Order.asc).as("a").outV().as("b").select("a", "b").by("skill").by("name");
         }
 
         @Override
@@ -844,6 +875,21 @@ public abstract class SelectTest extends AbstractGremlinProcessTest {
         @Override
         public Traversal<Vertex, Vertex> get_g_V_chooseXoutE_count_isX0X__asXaX__asXbXX_chooseXselectXaX__selectXaX__selectXbXX() {
             return g.V().choose(__.outE().count().is(0L), __.as("a"), __.as("b")).choose(__.select("a"), __.select("a"), __.select("b"));
+        }
+
+        @Override
+        public Traversal<Vertex, Long> get_g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX() {
+            return g.V().as("a").group("m").by().by(__.bothE().count()).barrier().select("m").select(__.select("a"));
+        }
+
+        @Override
+        public Traversal<Vertex, Double> get_g_V_asXaX_groupXmX_by_byXbothE_countX_barrier_selectXmX_selectXselectXaXX_byXmathX_plus_XX() {
+            return g.V().as("a").group("m").by().by(__.bothE().count()).barrier().select("m").<Double>select(__.select("a")).by(__.math("_+_"));
+        }
+
+        @Override
+        public Traversal<Vertex, List<Vertex>> get_g_V_asXaX_outXknowsX_asXaX_selectXall_constantXaXX() {
+            return g.V().as("a").out("knows").as("a").select(Pop.all, (Traversal) __.constant("a"));
         }
 
         @Override

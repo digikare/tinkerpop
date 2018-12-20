@@ -61,6 +61,8 @@ import org.apache.tinkerpop.gremlin.process.traversal.Pop;
 import org.apache.tinkerpop.gremlin.process.traversal.SackFunctions;
 import org.apache.tinkerpop.gremlin.process.traversal.Scope;
 import org.apache.tinkerpop.gremlin.process.traversal.Translator;
+import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
+import org.apache.tinkerpop.gremlin.process.traversal.AnonymousTraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
@@ -81,7 +83,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.Lazy
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.MatchPredicateStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.OrderLimitStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.PathProcessorStrategy;
-import org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.RangeByIsCountStrategy;
+import org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.CountStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.ComputerVerificationStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.LambdaRestrictionStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.ReadOnlyStrategy;
@@ -113,7 +115,8 @@ import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONTokens;
 import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONVersion;
 import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONWriter;
 import org.apache.tinkerpop.gremlin.structure.io.graphson.LegacyGraphSONReader;
-import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoClassResolver;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoClassResolverV1d0;
+import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoClassResolverV3d0;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoIo;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoMapper;
 import org.apache.tinkerpop.gremlin.structure.io.gryo.GryoReader;
@@ -137,6 +140,7 @@ import java.util.stream.Stream;
 
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
+ * @author Stephen Mallette (http://stephen.genoprime.com)
  */
 public final class CoreImports {
 
@@ -193,7 +197,8 @@ public final class CoreImports {
         CLASS_IMPORTS.add(GraphSONVersion.class);
         CLASS_IMPORTS.add(GraphSONWriter.class);
         CLASS_IMPORTS.add(LegacyGraphSONReader.class);
-        CLASS_IMPORTS.add(GryoClassResolver.class);
+        CLASS_IMPORTS.add(GryoClassResolverV1d0.class);
+        CLASS_IMPORTS.add(GryoClassResolverV3d0.class);
         CLASS_IMPORTS.add(GryoIo.class);
         CLASS_IMPORTS.add(GryoMapper.class);
         CLASS_IMPORTS.add(GryoReader.class);
@@ -229,15 +234,17 @@ public final class CoreImports {
         CLASS_IMPORTS.add(MatchPredicateStrategy.class);
         CLASS_IMPORTS.add(OrderLimitStrategy.class);
         CLASS_IMPORTS.add(PathProcessorStrategy.class);
-        CLASS_IMPORTS.add(RangeByIsCountStrategy.class);
+        CLASS_IMPORTS.add(CountStrategy.class);
         CLASS_IMPORTS.add(ComputerVerificationStrategy.class);
         CLASS_IMPORTS.add(LambdaRestrictionStrategy.class);
         CLASS_IMPORTS.add(ReadOnlyStrategy.class);
         CLASS_IMPORTS.add(StandardVerificationStrategy.class);
         // graph traversal
+        CLASS_IMPORTS.add(AnonymousTraversalSource.class);
         CLASS_IMPORTS.add(__.class);
         CLASS_IMPORTS.add(GraphTraversal.class);
         CLASS_IMPORTS.add(GraphTraversalSource.class);
+        CLASS_IMPORTS.add(Traversal.class);
         CLASS_IMPORTS.add(TraversalMetrics.class);
         CLASS_IMPORTS.add(Translator.class);
         CLASS_IMPORTS.add(Bindings.class);
@@ -274,6 +281,7 @@ public final class CoreImports {
 
         uniqueMethods(IoCore.class).forEach(METHOD_IMPORTS::add);
         uniqueMethods(P.class).forEach(METHOD_IMPORTS::add);
+        uniqueMethods(AnonymousTraversalSource.class).forEach(METHOD_IMPORTS::add);
         uniqueMethods(__.class).filter(m -> !m.getName().equals("__")).forEach(METHOD_IMPORTS::add);
         uniqueMethods(Computer.class).forEach(METHOD_IMPORTS::add);
         uniqueMethods(TimeUtil.class).forEach(METHOD_IMPORTS::add);

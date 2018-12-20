@@ -35,6 +35,8 @@ using Gremlin.Net.Structure;
 using Newtonsoft.Json.Linq;
 using Xunit;
 
+using static Gremlin.Net.Process.Traversal.AnonymousTraversalSource;
+
 namespace Gremlin.Net.IntegrationTest.Gherkin
 {
     internal class CommonSteps : StepDefinition
@@ -59,7 +61,8 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
                 {@"l\[(.*)\]", ToList},
                 {@"s\[(.*)\]", ToSet},
                 {@"m\[(.+)\]", ToMap},
-                {@"c\[(.+)\]", ToLambda}
+                {@"c\[(.+)\]", ToLambda},
+                {@"t\[(.+)\]", ToT}
             }.ToDictionary(kv => new Regex("^" + kv.Key + "$", RegexOptions.Compiled), kv => kv.Value);
 
         private static readonly IDictionary<char, Func<string, object>> NumericParsers =
@@ -81,7 +84,7 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             }
             var data = ScenarioData.GetByGraphName(graphName);
             _graphName = graphName;
-            _g = new Graph().Traversal().WithRemote(data.Connection);
+            _g = Traversal().WithRemote(data.Connection);
         }
 
         [Given("using the parameter (\\w+) defined as \"(.*)\"")]
@@ -236,6 +239,11 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             return Lambda.Groovy(stringLambda);
         }
 
+        private static object ToT(string enumName, string graphName)
+        {
+            return T.GetByValue(enumName);
+        }
+
         private static object ToNumber(string stringNumber, string graphName)
         {
             return NumericParsers[stringNumber[stringNumber.Length - 1]](
@@ -246,8 +254,9 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
         {
             if (value.Type == JTokenType.Object)
             {
-                IDictionary<string, JToken> jsonMap = (JObject)value; 
-                return jsonMap.ToDictionary(kv => kv.Key, kv => ParseMapValue(kv.Value, graphName));
+                IDictionary<string, JToken> jsonMap = (JObject)value;
+                return jsonMap.ToDictionary(kv => ParseMapValue(kv.Key, graphName),
+                    kv => ParseMapValue(kv.Value, graphName));
             }
             if (value.Type == JTokenType.Array)
             {
@@ -292,7 +301,7 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
 
         private static Path ToPath(string value, string graphName)
         {
-            return new Path(new List<List<string>>(0), value.Split(',').Select(x => ParseValue(x, graphName)).ToList());
+            return new Path(new List<ISet<string>>(0), value.Split(',').Select(x => ParseValue(x, graphName)).ToList());
         }
 
         private static object ParseValue(string stringValue, string graphName)

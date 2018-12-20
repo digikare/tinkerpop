@@ -201,14 +201,14 @@ public class PathRetractionStrategyTest {
                 {__.V().select("a").map(select("b").repeat(select("c"))).select("a"),
                         "[[a, b, c], [[a, c], [[a, c]]], []]", null},
                 {__.V().out("created").project("a", "b").by("name").by(__.in("created").count()).order().by(select("b")).select("a"), "[[[a]], []]", null},
-                {__.order().by("weight", Order.decr).store("w").by("weight").filter(values("weight").as("cw").
+                {__.order().by("weight", Order.desc).store("w").by("weight").filter(values("weight").as("cw").
                         select("w").by(limit(Scope.local, 1)).as("mw").where("cw", eq("mw"))).project("from", "to", "weight").by(__.outV()).by(__.inV()).by("weight"),
                         "[[[cw, mw], []]]", null},
                 {__.V().limit(1).as("z").out().repeat(store("seen").out().where(without("seen"))).until(where(eq("z"))),
                         "[[[z, seen]], [[z, seen]]]", null},
                 {__.V().as("a").optional(bothE().dedup().as("b")).
                         choose(select("b"), select("a","b"), project("a").by(select("a"))),
-                        "[[[a, b]], [[a, b]], [[a, b]], [[[a, b]]], [[a, b]]]", null},
+                        "[[[a, b]], [[a, b]], [[[a, b]]], [[a, b]]]", null},
                 {__.V().as("a").out().where(neq("a")).program(labeledPathVertexProgram), PATH_RETRACTION_STRATEGY_DISABLED, null},
                 {__.V().as("a").out().where(neq("a")).program(pathVertexProgram).select("a"), PATH_RETRACTION_STRATEGY_DISABLED, null},
                 {__.V().as("a").out().program(emptyRequirementsVertexProgram).select("a"), "[[]]", null},

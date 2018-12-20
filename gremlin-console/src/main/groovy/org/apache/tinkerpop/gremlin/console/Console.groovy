@@ -22,6 +22,7 @@ import jline.TerminalFactory
 import jline.console.history.FileHistory
 
 import org.apache.commons.cli.Option
+import org.apache.tinkerpop.gremlin.console.commands.BytecodeCommand
 import org.apache.tinkerpop.gremlin.console.commands.GremlinSetCommand
 import org.apache.tinkerpop.gremlin.console.commands.InstallCommand
 import org.apache.tinkerpop.gremlin.console.commands.PluginCommand
@@ -29,9 +30,10 @@ import org.apache.tinkerpop.gremlin.console.commands.RemoteCommand
 import org.apache.tinkerpop.gremlin.console.commands.SubmitCommand
 import org.apache.tinkerpop.gremlin.console.commands.UninstallCommand
 import org.apache.tinkerpop.gremlin.groovy.loaders.GremlinLoader
-import org.apache.tinkerpop.gremlin.groovy.plugin.GremlinPlugin
 import org.apache.tinkerpop.gremlin.jsr223.CoreGremlinPlugin
+import org.apache.tinkerpop.gremlin.jsr223.GremlinPlugin
 import org.apache.tinkerpop.gremlin.jsr223.ImportCustomizer
+import org.apache.tinkerpop.gremlin.jsr223.console.RemoteException
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalExplanation
 import org.apache.tinkerpop.gremlin.structure.Edge
 import org.apache.tinkerpop.gremlin.structure.T
@@ -64,14 +66,6 @@ class Console {
     private final Groovysh groovy
     private final boolean interactive
 
-    /**
-     * @deprecated As of release 3.2.1.
-     */
-    @Deprecated
-    public Console(final String initScriptFile) {
-        this(new IO(System.in, System.out, System.err), initScriptFile.size() != null ? [[initScriptFile]]: null, true)
-    }
-
     public Console(final IO io, final List<List<String>> scriptsAndArgs, final boolean interactive) {
         this.io = io
         this.interactive = interactive
@@ -98,22 +92,15 @@ class Console {
         groovy.register(new PluginCommand(groovy, mediator))
         groovy.register(new RemoteCommand(groovy, mediator))
         groovy.register(new SubmitCommand(groovy, mediator))
+        groovy.register(new BytecodeCommand(groovy, mediator))
 
         // hide output temporarily while imports execute
         showShellEvaluationOutput(false)
 
-        if (Mediator.useV3d3) {
-            def imports = (ImportCustomizer) CoreGremlinPlugin.instance().getCustomizers("gremlin-groovy").get()[0]
-            imports.getClassPackages().collect { Mediator.IMPORT_SPACE + it.getName() + Mediator.IMPORT_WILDCARD }.each { groovy.execute(it) }
-            imports.getMethodClasses().collect { Mediator.IMPORT_STATIC_SPACE + it.getCanonicalName() + Mediator.IMPORT_WILDCARD}.each{ groovy.execute(it) }
-            imports.getEnumClasses().collect { Mediator.IMPORT_STATIC_SPACE + it.getCanonicalName() + Mediator.IMPORT_WILDCARD}.each{ groovy.execute(it) }
-        } else {
-            // add the default imports
-            new ConsoleImportCustomizerProvider().getCombinedImports().stream()
-                    .collect { Mediator.IMPORT_SPACE + it }.each { groovy.execute(it) }
-            new ConsoleImportCustomizerProvider().getCombinedStaticImports().stream()
-                    .collect { Mediator.IMPORT_STATIC_SPACE + it }.each { groovy.execute(it) }
-        }
+        def imports = (ImportCustomizer) CoreGremlinPlugin.instance().getCustomizers("gremlin-groovy").get()[0]
+        imports.getClassPackages().collect { Mediator.IMPORT_SPACE + it.getName() + Mediator.IMPORT_WILDCARD }.each { groovy.execute(it) }
+        imports.getMethodClasses().collect { Mediator.IMPORT_STATIC_SPACE + it.getCanonicalName() + Mediator.IMPORT_WILDCARD}.each{ groovy.execute(it) }
+        imports.getEnumClasses().collect { Mediator.IMPORT_STATIC_SPACE + it.getCanonicalName() + Mediator.IMPORT_WILDCARD}.each{ groovy.execute(it) }
 
         final InteractiveShellRunner runner = new InteractiveShellRunner(groovy, handlePrompt)
         runner.setErrorHandler(handleError)
@@ -129,16 +116,9 @@ class Console {
 
         // check for available plugins on the path and track them by plugin class name
         def activePlugins = Mediator.readPluginState()
-        def pluginClass = mediator.useV3d3 ? org.apache.tinkerpop.gremlin.jsr223.GremlinPlugin : GremlinPlugin
-        ServiceLoader.load(pluginClass, groovy.getInterp().getClassLoader()).each { plugin ->
+        ServiceLoader.load(GremlinPlugin, groovy.getInterp().getClassLoader()).each { plugin ->
             if (!mediator.availablePlugins.containsKey(plugin.class.name)) {
-                def pluggedIn
-
-                if (Mediator.useV3d3) {
-                    pluggedIn = new PluggedIn(new PluggedIn.GremlinPluginAdapter((org.apache.tinkerpop.gremlin.jsr223.GremlinPlugin) plugin, groovy, io), groovy, io, false)
-                } else {
-                    pluggedIn = new PluggedIn((GremlinPlugin) plugin, groovy, io, false)
-                }
+                def pluggedIn = new PluggedIn((GremlinPlugin) plugin, groovy, io, false)
 
                 mediator.availablePlugins.put(plugin.class.name, pluggedIn)
             }
@@ -339,7 +319,12 @@ class Console {
                     io.err.print(line.trim())
                     io.err.println()
                     if (line.trim().equals("y") || line.trim().equals("Y")) {
-                        e.printStackTrace(io.err)
+                        if (err instanceof RemoteException && err.remoteStackTrace.isPresent()) {
+                            io.err.print(err.remoteStackTrace.get())
+                            io.err.flush()
+                        } else {
+                            e.printStackTrace(io.err)
+                        }
                     }
                 } else {
                     e.printStackTrace(io.err)
@@ -474,14 +459,8 @@ class Console {
             System.exit(0)
         }
 
-        // need to do some up front processing to try to support "bin/gremlin.sh init.groovy" until this deprecated
-        // feature can be removed. ultimately this should be removed when a breaking change can go in
-        if (args.length == 1 && !args[0].startsWith("-")) {
-            new Console(io, [[args[0]]], true)
-        } else {
-            def scriptAndArgs = parseArgs(options.e ? ["-e", "--execute"] : ["-i", "--interactive"], args, cli)
-            new Console(io, scriptAndArgs, !options.e)
-        }
+        def scriptAndArgs = parseArgs(options.e ? ["-e", "--execute"] : ["-i", "--interactive"], args, cli)
+        new Console(io, scriptAndArgs, !options.e)
     }
 
     /**

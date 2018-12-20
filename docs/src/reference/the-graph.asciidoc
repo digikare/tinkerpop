@@ -130,7 +130,7 @@ g.V().as('a').
       hasNot('endTime').as('c').
       select('a','b','c').by('name').by(value).by('startTime') // determine the current location of each person
 g.V().has('name','gremlin').inE('uses').
-      order().by('skill',incr).as('a').
+      order().by('skill',asc).as('a').
       outV().as('b').
       select('a','b').by('skill').by('name') // rank the users of gremlin by their skill level
 ----
@@ -179,7 +179,7 @@ modify the graph as required and call `graph.tx().commit()` to apply changes or 
 When the next read or write action occurs against the graph, a new transaction will be started within that current
 thread of execution.
 
-When using transactions in this fashion, especially in web application (e.g. REST server), it is important to ensure
+When using transactions in this fashion, especially in web application (e.g. HTTP server), it is important to ensure
 that transactions do not leak from one request to the next.  In other words, unless a client is somehow bound via
 session to process every request on the same server thread, every request must be committed or rolled back at the end
 of the request.  By ensuring that the request encapsulates a transaction, it ensures that a future request processed
@@ -467,11 +467,13 @@ called `tinkerpop-modern.json` and then how to read that file back into a differ
 [source,java]
 ----
 Graph graph = TinkerFactory.createModern();
-graph.io(IoCore.graphson()).writeGraph("tinkerpop-modern.json");
+graph.io(graphson()).writeGraph("tinkerpop-modern.json");
 
 Graph newGraph = TinkerGraph.open();
-newGraph.io(IoCore.graphson()).readGraph("tinkerpop-modern.json");
+newGraph.io(graphson()).readGraph("tinkerpop-modern.json");
 ----
+
+NOTE: Using `graphson()`, which is a static helper method of `IoCore`, will default to the most current version of GraphSON which is 3.0.
 
 If a custom configuration is required, then have the `Graph` generate a `GraphReader` or `GraphWriter` "builder" instance:
 
@@ -480,19 +482,16 @@ If a custom configuration is required, then have the `Graph` generate a `GraphRe
 Graph graph = TinkerFactory.createModern();
 try (OutputStream os = new FileOutputStream("tinkerpop-modern.json")) {
     GraphSONMapper mapper = graph.io(IoCore.graphson()).mapper().normalize(true).create()
-    graph.io(IoCore.graphson()).writer().mapper(mapper).create().writeGraph(os, graph)
+    graph.io(graphson()).writer().mapper(mapper).create().writeGraph(os, graph)
 }
 
 Graph newGraph = TinkerGraph.open();
 try (InputStream stream = new FileInputStream("tinkerpop-modern.json")) {
-    newGraph.io(IoCore.graphson()).reader().create().readGraph(stream, newGraph);
+    newGraph.io(graphson()).reader().create().readGraph(stream, newGraph);
 }
 ----
 
-One of the important configuration options of the `GraphSONReader` and `GraphSONWriter` is the ability to embed type
-information into the output.  By embedding the types, it becomes possible to serialize a graph without losing type
-information that might be important when being consumed by another source.  The importance of this concept is
-demonstrated in the following example where a single `Vertex` is written to GraphSON using the Gremlin Console:
+The following example shows how a single `Vertex` is written to GraphSON using the Gremlin Console:
 
 [gremlin-groovy]
 ----
@@ -508,200 +507,97 @@ The following GraphSON example shows the output of `GraphSONWriter.writeVertex()
 [source,json]
 ----
 {
-    "id": 1,
-    "label": "person",
-    "outE": {
-        "created": [
-            {
-                "id": 9,
-                "inV": 3,
-                "properties": {
-                    "weight": 0.4
-                }
-            }
-        ],
-        "knows": [
-            {
-                "id": 7,
-                "inV": 2,
-                "properties": {
-                    "weight": 0.5
-                }
-            },
-            {
-                "id": 8,
-                "inV": 4,
-                "properties": {
-                    "weight": 1
-                }
-            }
-        ]
-    },
-    "properties": {
-        "name": [
-            {
-                "id": 0,
-                "value": "marko"
-            }
-        ],
-        "age": [
-            {
-                "id": 1,
-                "value": 29
-            }
-        ]
-    }
+	"id": {
+		"@type": "g:Int32",
+		"@value": 1
+	},
+	"label": "person",
+	"outE": {
+		"created": [{
+			"id": {
+				"@type": "g:Int32",
+				"@value": 9
+			},
+			"inV": {
+				"@type": "g:Int32",
+				"@value": 3
+			},
+			"properties": {
+				"weight": {
+					"@type": "g:Double",
+					"@value": 0.4
+				}
+			}
+		}],
+		"knows": [{
+			"id": {
+				"@type": "g:Int32",
+				"@value": 7
+			},
+			"inV": {
+				"@type": "g:Int32",
+				"@value": 2
+			},
+			"properties": {
+				"weight": {
+					"@type": "g:Double",
+					"@value": 0.5
+				}
+			}
+		}, {
+			"id": {
+				"@type": "g:Int32",
+				"@value": 8
+			},
+			"inV": {
+				"@type": "g:Int32",
+				"@value": 4
+			},
+			"properties": {
+				"weight": {
+					"@type": "g:Double",
+					"@value": 1.0
+				}
+			}
+		}]
+	},
+	"properties": {
+		"name": [{
+			"id": {
+				"@type": "g:Int64",
+				"@value": 0
+			},
+			"value": "marko"
+		}],
+		"age": [{
+			"id": {
+				"@type": "g:Int64",
+				"@value": 1
+			},
+			"value": {
+				"@type": "g:Int32",
+				"@value": 29
+			}
+		}]
+	}
 }
 ----
 
-The vertex properly serializes to valid JSON but note that a consuming application will not automatically know how to
-interpret the numeric values.  In coercing those Java values to JSON, such information is lost.
-
-NOTE: Additional documentation for GraphSON can be found in the link:http://tinkerpop.apache.org/docs/x.y.z/dev/io/#graphson[IO Reference].
-
-[[graphson-types-embedding]]
-==== Types embedding
-
-With a minor change to the construction of the `GraphSONWriter` the lossy nature of GraphSON can be avoided.
-
-[[graphson-1-0-types]]
-===== Types with GraphSON 1.0
-
-GraphSON 1.0 is the version enabled by default when creating a GraphSON Mapper. Here is how to enable types with
-GraphSON 1.0:
+GraphSON has several versions and each has differences that prevent complete compatibility with one another. While the
+default version provided by `IoCore.graphson()` is recommended, it is possible to make changes to revert to an earlier
+version. The following shows an example of how to use 1.0 (with type embedding):
 
 [gremlin-groovy]
 ----
 graph = TinkerFactory.createModern()
 g = graph.traversal()
 f = new ByteArrayOutputStream()
-mapper = graph.io(graphson()).mapper().embedTypes(true).create()
-graph.io(graphson()).writer().mapper(mapper).create().writeVertex(f, g.V(1).next(), BOTH)
+mapper = graph.io(GraphSONIo.build(GraphSONVersion.V1_0)).mapper().typeInfo(TypeInfo.PARTIAL_TYPES).create()
+graph.io(GraphSONIo.build(GraphSONVersion.V1_0)).writer().mapper(mapper).create().writeVertex(f, g.V(1).next(), BOTH)
 f.close()
 ----
 
-In the above code, the `embedTypes` option is set to `true` and the output below shows the difference in the output:
-
-[source,json]
-----
-{
-    "@class": "java.util.HashMap",
-    "id": 1,
-    "label": "person",
-    "outE": {
-        "@class": "java.util.HashMap",
-        "created": [
-            "java.util.ArrayList",
-            [
-                {
-                    "@class": "java.util.HashMap",
-                    "id": 9,
-                    "inV": 3,
-                    "properties": {
-                        "@class": "java.util.HashMap",
-                        "weight": 0.4
-                    }
-                }
-            ]
-        ],
-        "knows": [
-            "java.util.ArrayList",
-            [
-                {
-                    "@class": "java.util.HashMap",
-                    "id": 7,
-                    "inV": 2,
-                    "properties": {
-                        "@class": "java.util.HashMap",
-                        "weight": 0.5
-                    }
-                },
-                {
-                    "@class": "java.util.HashMap",
-                    "id": 8,
-                    "inV": 4,
-                    "properties": {
-                        "@class": "java.util.HashMap",
-                        "weight": 1
-                    }
-                }
-            ]
-        ]
-    },
-    "properties": {
-        "@class": "java.util.HashMap",
-        "name": [
-            "java.util.ArrayList",
-            [
-                {
-                    "@class": "java.util.HashMap",
-                    "id": [
-                        "java.lang.Long",
-                        0
-                    ],
-                    "value": "marko"
-                }
-            ]
-        ],
-        "age": [
-            "java.util.ArrayList",
-            [
-                {
-                    "@class": "java.util.HashMap",
-                    "id": [
-                        "java.lang.Long",
-                        1
-                    ],
-                    "value": 29
-                }
-            ]
-        ]
-    }
-}
-----
-
-The ambiguity of components of the GraphSON is now removed by the `@class` property, which contains Java class
-information for the data it is associated with.  The `@class` property is used for all non-final types, with the
-exception of a small number of "natural" types (String, Boolean, Integer, and Double) which can be correctly inferred
-from JSON typing.  While the output is more verbose, it comes with the security of not losing type information.  While
-non-JVM languages won't be able to consume this information automatically, at least there is a hint as to how the
-values should be coerced back into the correct types in the target language.
-
-[[graphson-2-0-types]]
-===== GraphSON 2.0
-
-GraphSON 2.0 has been introduced to improve the format of the typed values from GraphSON 1.0. It provides non-Java
-centric types information in a consistent format.
-
-With GraphSON 2.0, types are enabled by default.
-
-The type format is:
-
-* Non typed value - `value`
-* Typed value     - `{"@type":"typeID", "@value":value}`
-
-TypeIDs are composed of 2 parts, a namespace, and a type name, in the format `"namespace:typename"`.
-A namespace gives the possibility for TinkerPop implementors to categorize custom types they may implement
-and avoid collision with existing TinkerPop types. By default, TinkerPop types will have the
-namespace `g`.
-
-GraphSON 2.0 will provide type information for any value that is not `String`, `Boolean`, `Map` or `Collection`.
-TinkerPop includes types for graph elements:
-
-* Vertex - `g:Vertex`
-* Edge - `g:Edge`
-* VertexPropery - `g:VertexProperty`
-* Property - `g:Property`
-* Path - `g:Path`
-* Tree - `g:Tree`
-* Graph - `g:Graph`
-* Metrics - `g:Metrics`
-* TraversalMetrics - `g:TraversalMetrics`
-
-GraphSON 2.0 can also be configured with "extended" types that build on top of the core types in the "g" namespace.
-The extended types are in the "gx" namespace as exposed by `GraphSONXModuleV2d0` and includes additional types like
-mappings to Java's `java.time.*` classes, `BigInteger`, `BigDecimal` and others. This module can be added when building
-a `GraphSONMapper` by calling the `addCustomModule()` method on the `Builder`.
+NOTE: Additional documentation for GraphSON can be found in the link:http://tinkerpop.apache.org/docs/x.y.z/dev/io/#graphson[IO Reference].
 
 IMPORTANT: When using the extended type system in Gremlin Server, support for these types when used in the context of
 Gremlin Language Variants is dependent on the programming language, the driver and its serializers. These
@@ -722,7 +618,7 @@ f.close()
 Creating a GraphSON 2.0 mapper is done by calling `.version(GraphSONVersion.V2_0)` on the mapper builder. Here's is the
 example output from the code above:
 
-[source, json]
+[source,json]
 ----
 {
     "@type": "g:Vertex",
@@ -812,11 +708,13 @@ Kryo supports all of the `GraphReader` and `GraphWriter` interface methods and c
 [source,java]
 ----
 Graph graph = TinkerFactory.createModern();
-graph.io(IoCore.gryo()).writeGraph("tinkerpop-modern.kryo");
+graph.io(gryo()).writeGraph("tinkerpop-modern.kryo");
 
 Graph newGraph = TinkerGraph.open();
-newGraph.io(IoCore.gryo()).readGraph("tinkerpop-modern.kryo");
+newGraph.io(gryo()).readGraph("tinkerpop-modern.kryo");
 ----
+
+NOTE: Using `gryo()`, which is a static helper method of `IoCore`, will default to the most current version of Gryo which is 3.0.
 
 If a custom configuration is required, then have the `Graph` generate a `GraphReader` or `GraphWriter` "builder" instance:
 
@@ -824,12 +722,12 @@ If a custom configuration is required, then have the `Graph` generate a `GraphRe
 ----
 Graph graph = TinkerFactory.createModern();
 try (OutputStream os = new FileOutputStream("tinkerpop-modern.kryo")) {
-    graph.io(IoCore.gryo()).writer().create().writeGraph(os, graph);
+    graph.io(GryoIo.build(GryoVersion.V1_0)).writer().create().writeGraph(os, graph);
 }
 
 Graph newGraph = TinkerGraph.open();
 try (InputStream stream = new FileInputStream("tinkerpop-modern.kryo")) {
-    newGraph.io(IoCore.gryo()).reader().create().readGraph(stream, newGraph);
+    newGraph.io(GryoIo.build(GryoVersion.V1_0)).reader().create().readGraph(stream, newGraph);
 }
 ----
 

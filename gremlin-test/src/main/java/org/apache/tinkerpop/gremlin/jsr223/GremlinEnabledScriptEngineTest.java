@@ -35,12 +35,10 @@ import javax.script.SimpleBindings;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import static org.apache.tinkerpop.gremlin.jsr223.GremlinScriptEngineSuite.ENGINE_TO_TEST;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.AnyOf.anyOf;
-import static org.hamcrest.core.CombinableMatcher.either;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeThat;
@@ -150,31 +148,6 @@ public class GremlinEnabledScriptEngineTest {
     public void shouldHaveCoreImportsInPlace() throws Exception {
         final GremlinScriptEngine scriptEngine = manager.getEngineByName(ENGINE_TO_TEST);
         final List<Class> classesToCheck = Arrays.asList(Vertex.class, Edge.class, Graph.class, VertexProperty.class);
-        for (Class clazz : classesToCheck) {
-            assertEquals(clazz, scriptEngine.eval(clazz.getSimpleName()));
-        }
-    }
-
-    @Test
-    public void shouldSupportDeprecatedGremlinModules() throws Exception {
-        final GremlinScriptEngineManager mgr = new DefaultGremlinScriptEngineManager();
-        mgr.addModule(new GremlinModule() {
-            @Override
-            public String getName() {
-                return "test.junk";
-            }
-
-            @Override
-            public Optional<Customizer[]> getCustomizers(final String scriptEngineName) {
-                return Optional.of(new Customizer[] {DefaultImportCustomizer.build()
-                        .addClassImports(java.awt.Color.class)
-                        .addClassImports(java.sql.CallableStatement.class)
-                        .create() });
-            }
-        });
-
-        final GremlinScriptEngine scriptEngine = mgr.getEngineByName(ENGINE_TO_TEST);
-        final List<Class> classesToCheck = Arrays.asList(java.awt.Color.class, java.sql.CallableStatement.class);
         for (Class clazz : classesToCheck) {
             assertEquals(clazz, scriptEngine.eval(clazz.getSimpleName()));
         }

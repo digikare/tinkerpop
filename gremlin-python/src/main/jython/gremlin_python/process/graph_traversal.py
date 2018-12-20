@@ -91,6 +91,11 @@ class GraphTraversalSource(object):
         traversal.bytecode.add_step("V", *args)
         return traversal
 
+    def addE(self, *args):
+        traversal = self.get_graph_traversal()
+        traversal.bytecode.add_step("addE", *args)
+        return traversal
+
     def addV(self, *args):
         traversal = self.get_graph_traversal()
         traversal.bytecode.add_step("addV", *args)
@@ -109,7 +114,12 @@ class GraphTraversal(Traversal):
         if isinstance(index, int):
             return self.range(long(index), long(index + 1))
         elif isinstance(index, slice):
-            return self.range(long(0) if index.start is None else long(index.start), long(sys.maxsize) if index.stop is None else long(index.stop))
+            low = long(0) if index.start is None else long(index.start)
+            high = long(sys.maxsize) if index.stop is None else long(index.stop)
+            if low == long(0):
+                return self.limit(high)
+            else:
+                return self.range(low,high)
         else:
             raise TypeError("Index must be int or slice")
     def __getattr__(self, key):
@@ -121,14 +131,6 @@ class GraphTraversal(Traversal):
 
     def addE(self, *args):
         self.bytecode.add_step("addE", *args)
-        return self
-
-    def addInE(self, *args):
-        self.bytecode.add_step("addInE", *args)
-        return self
-
-    def addOutE(self, *args):
-        self.bytecode.add_step("addOutE", *args)
         return self
 
     def addV(self, *args):
@@ -235,10 +237,6 @@ class GraphTraversal(Traversal):
         self.bytecode.add_step("groupCount", *args)
         return self
 
-    def groupV3d0(self, *args):
-        self.bytecode.add_step("groupV3d0", *args)
-        return self
-
     def has(self, *args):
         self.bytecode.add_step("has", *args)
         return self
@@ -315,16 +313,12 @@ class GraphTraversal(Traversal):
         self.bytecode.add_step("map", *args)
         return self
 
-    def mapKeys(self, *args):
-        self.bytecode.add_step("mapKeys", *args)
-        return self
-
-    def mapValues(self, *args):
-        self.bytecode.add_step("mapValues", *args)
-        return self
-
     def match(self, *args):
         self.bytecode.add_step("match", *args)
+        return self
+
+    def math(self, *args):
+        self.bytecode.add_step("math", *args)
         return self
 
     def max(self, *args):
@@ -439,6 +433,10 @@ class GraphTraversal(Traversal):
         self.bytecode.add_step("simplePath", *args)
         return self
 
+    def skip(self, *args):
+        self.bytecode.add_step("skip", *args)
+        return self
+
     def store(self, *args):
         self.bytecode.add_step("store", *args)
         return self
@@ -525,14 +523,6 @@ class __(object):
     @classmethod
     def addE(cls, *args):
         return cls.graph_traversal(None, None, Bytecode()).addE(*args)
-
-    @classmethod
-    def addInE(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).addInE(*args)
-
-    @classmethod
-    def addOutE(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).addOutE(*args)
 
     @classmethod
     def addV(cls, *args):
@@ -631,10 +621,6 @@ class __(object):
         return cls.graph_traversal(None, None, Bytecode()).groupCount(*args)
 
     @classmethod
-    def groupV3d0(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).groupV3d0(*args)
-
-    @classmethod
     def has(cls, *args):
         return cls.graph_traversal(None, None, Bytecode()).has(*args)
 
@@ -711,16 +697,12 @@ class __(object):
         return cls.graph_traversal(None, None, Bytecode()).map(*args)
 
     @classmethod
-    def mapKeys(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).mapKeys(*args)
-
-    @classmethod
-    def mapValues(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).mapValues(*args)
-
-    @classmethod
     def match(cls, *args):
         return cls.graph_traversal(None, None, Bytecode()).match(*args)
+
+    @classmethod
+    def math(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).math(*args)
 
     @classmethod
     def max(cls, *args):
@@ -815,6 +797,10 @@ class __(object):
         return cls.graph_traversal(None, None, Bytecode()).simplePath(*args)
 
     @classmethod
+    def skip(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).skip(*args)
+
+    @classmethod
     def store(cls, *args):
         return cls.graph_traversal(None, None, Bytecode()).store(*args)
 
@@ -891,14 +877,6 @@ statics.add_static('V', V)
 def addE(*args):
     return __.addE(*args)
 statics.add_static('addE', addE)
-
-def addInE(*args):
-    return __.addInE(*args)
-statics.add_static('addInE', addInE)
-
-def addOutE(*args):
-    return __.addOutE(*args)
-statics.add_static('addOutE', addOutE)
 
 def addV(*args):
     return __.addV(*args)
@@ -996,10 +974,6 @@ def groupCount(*args):
     return __.groupCount(*args)
 statics.add_static('groupCount', groupCount)
 
-def groupV3d0(*args):
-    return __.groupV3d0(*args)
-statics.add_static('groupV3d0', groupV3d0)
-
 def has(*args):
     return __.has(*args)
 statics.add_static('has', has)
@@ -1076,17 +1050,13 @@ def map(*args):
     return __.map(*args)
 statics.add_static('map', map)
 
-def mapKeys(*args):
-    return __.mapKeys(*args)
-statics.add_static('mapKeys', mapKeys)
-
-def mapValues(*args):
-    return __.mapValues(*args)
-statics.add_static('mapValues', mapValues)
-
 def match(*args):
     return __.match(*args)
 statics.add_static('match', match)
+
+def math(*args):
+    return __.math(*args)
+statics.add_static('math', math)
 
 def max(*args):
     return __.max(*args)
@@ -1179,6 +1149,10 @@ statics.add_static('sideEffect', sideEffect)
 def simplePath(*args):
     return __.simplePath(*args)
 statics.add_static('simplePath', simplePath)
+
+def skip(*args):
+    return __.skip(*args)
+statics.add_static('skip', skip)
 
 def store(*args):
     return __.store(*args)

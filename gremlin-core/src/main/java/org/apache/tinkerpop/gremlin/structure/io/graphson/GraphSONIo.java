@@ -38,13 +38,11 @@ import java.util.function.Consumer;
  * @author Stephen Mallette (http://stephen.genoprime.com)
  */
 public final class GraphSONIo implements Io<GraphSONReader.Builder, GraphSONWriter.Builder, GraphSONMapper.Builder> {
-    private final IoRegistry registry;
     private final Graph graph;
     private final Optional<Consumer<Mapper.Builder>> onMapper;
     private final GraphSONVersion version;
 
     private GraphSONIo(final Builder builder) {
-        this.registry = builder.registry;
         this.graph = builder.graph;
         this.onMapper = Optional.ofNullable(builder.onMapper);
         this.version = builder.version;
@@ -71,8 +69,7 @@ public final class GraphSONIo implements Io<GraphSONReader.Builder, GraphSONWrit
      */
     @Override
     public GraphSONMapper.Builder mapper() {
-        final GraphSONMapper.Builder builder = (null == this.registry) ?
-                GraphSONMapper.build().version(version) : GraphSONMapper.build().version(version).addRegistry(this.registry);
+        final GraphSONMapper.Builder builder = GraphSONMapper.build().version(version);
         onMapper.ifPresent(c -> c.accept(builder));
         return builder;
     }
@@ -98,10 +95,10 @@ public final class GraphSONIo implements Io<GraphSONReader.Builder, GraphSONWrit
     }
 
     /**
-     * Create a new builder using the default version of GraphSON.
+     * Create a new builder using the default version of GraphSON - v3.
      */
     public static Io.Builder<GraphSONIo> build() {
-        return build(GraphSONVersion.V1_0);
+        return build(GraphSONVersion.V3_0);
     }
 
     /**
@@ -113,23 +110,12 @@ public final class GraphSONIo implements Io<GraphSONReader.Builder, GraphSONWrit
 
     public final static class Builder implements Io.Builder<GraphSONIo> {
 
-        private IoRegistry registry = null;
         private Graph graph;
         private Consumer<Mapper.Builder> onMapper = null;
         private final GraphSONVersion version;
 
         Builder(final GraphSONVersion version) {
             this.version = version;
-        }
-
-        /**
-         * @deprecated As of release 3.2.2, replaced by {@link #onMapper(Consumer)}.
-         */
-        @Deprecated
-        @Override
-        public Io.Builder<GraphSONIo> registry(final IoRegistry registry) {
-            this.registry = registry;
-            return this;
         }
 
         @Override
@@ -142,6 +128,11 @@ public final class GraphSONIo implements Io<GraphSONReader.Builder, GraphSONWrit
         public Io.Builder<GraphSONIo> graph(final Graph g) {
             this.graph = g;
             return this;
+        }
+
+        @Override
+        public <V> boolean requiresVersion(final V version) {
+            return this.version == version;
         }
 
         @Override

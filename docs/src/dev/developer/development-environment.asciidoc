@@ -25,7 +25,7 @@ configure a development environment for TinkerPop.
 == System Configuration
 
 At a minimum, development of TinkerPop requires link:http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html[Java 1.8.0_40+]
-and link:https://maven.apache.org/download.cgi[Maven 3.1.0+]. Maven is used as the common build system, which even
+and link:https://maven.apache.org/download.cgi[Maven 3.2.5+]. Maven is used as the common build system, which even
 controls the builds of non-JVM link:http://tinkerpop.apache.org/docs/current/tutorials/gremlin-language-variants/[GLVs]
 such as `gremlin-python`. Java and Maven are described as a "minimum" for a development environment, because they
 will only build JVM portions of TinkerPop and many integration tests will not fire with this simple setup. It is
@@ -237,7 +237,9 @@ mvn -Dmaven.javadoc.skip=true --projects tinkergraph-gremlin test
 ** Build AsciiDocs (but don't evaluate code blocks in specific files): `bin/process-docs.sh --dryRun docs/src/reference/the-graph.asciidoc,docs/src/tutorial/getting-started,...`
 ** Build AsciiDocs (but evaluate code blocks only in specific files): `bin/process-docs.sh --fullRun docs/src/reference/the-graph.asciidoc,docs/src/tutorial/getting-started,...`
 ** Process a single AsciiDoc file: +pass:[docs/preprocessor/preprocess-file.sh `pwd`/gremlin-console/target/apache-tinkerpop-gremlin-console-*-standalone "" "*" `pwd`/docs/src/xyz.asciidoc]+
-* Build JavaDocs: `mvn process-resources -Djavadoc`
+* Build JavaDocs/JSDoc: `mvn process-resources -Djavadoc`
+** Javadoc to `target/site/apidocs` directory
+** JSDoc to the `gremlin-javascript/src/main/javascript/gremlin-javascript/doc/` directory
 * Check for Apache License headers: `mvn apache-rat:check`
 * Specify the seed used for `Random` in tests `mvn clean install -DtestSeed` - useful when a test fails, the seed will be printed in the build output so that the test can run with the same version of random (look for "TestHelper" logger in output)
 * Check for newer dependencies: `mvn versions:display-dependency-updates` or `mvn versions:display-plugin-updates`
@@ -246,8 +248,13 @@ mvn -Dmaven.javadoc.skip=true --projects tinkergraph-gremlin test
 * Integration Tests: `mvn verify -DskipIntegrationTests=false`
 ** Execute with the `-DincludeNeo4j` option to include transactional tests.
 ** Execute with the `-DuseEpoll` option to try to use Netty native transport (works on Linux, but will fallback to Java NIO on other OS).
-* Performance Tests: `mvn verify -DskipPerformanceTests=false`
 * Benchmarks: `mvn verify -DskipBenchmarks=false`
+** Reports are generated to the console and to `gremlin-tools/gremlin-benchmark/target/reports/benchmark`.
+* Test coverage report: `mvn clean install -Dcoverage` - note that the `install` is necessary because report aggregation is bound to that part of the lifecycle.
+** Reports are generated to `gremlin-tools/gremlin-coverage/target/site`.
+* `cd site`
+** Generate web site locally: `bin/generate-home.sh`
+** Publish web site: `bin/publish-home.sh <username>`
 
 [[docker-integration]]
 == Docker Integration

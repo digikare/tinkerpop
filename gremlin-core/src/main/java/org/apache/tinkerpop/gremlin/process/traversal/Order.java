@@ -19,8 +19,9 @@
 package org.apache.tinkerpop.gremlin.process.traversal;
 
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Random;
+
+import org.apache.tinkerpop.gremlin.util.NumberHelper;
 
 /**
  * Provides {@code Comparator} instances for ordering traversers.
@@ -34,6 +35,7 @@ public enum Order implements Comparator<Object> {
      * Order in ascending fashion
      *
      * @since 3.0.0-incubating
+     * @deprecated As of release 3.3.4, replaced by {@link #asc}.
      */
     incr {
         @Override
@@ -53,6 +55,7 @@ public enum Order implements Comparator<Object> {
      * Order in descending fashion.
      *
      * @since 3.0.0-incubating
+     * @deprecated As of release 3.3.4, replaced by {@link #desc}.
      */
     decr {
         @Override
@@ -65,74 +68,6 @@ public enum Order implements Comparator<Object> {
         @Override
         public Order reversed() {
             return incr;
-        }
-    },
-
-    /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.1-incubating, replaced by {@link org.apache.tinkerpop.gremlin.structure.Column#keys}.
-     */
-    @Deprecated
-    keyIncr {
-        @Override
-        public int compare(final Object first, final Object second) {
-            return Comparator.<Comparable>naturalOrder().compare(((Map.Entry<Comparable, ?>) first).getKey(), ((Map.Entry<Comparable, ?>) second).getKey());
-        }
-
-        @Override
-        public Order reversed() {
-            return keyDecr;
-        }
-    },
-
-    /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.1-incubating, replaced by {@link org.apache.tinkerpop.gremlin.structure.Column#values}.
-     */
-    @Deprecated
-    valueIncr {
-        @Override
-        public int compare(final Object first, final Object second) {
-            return Comparator.<Comparable>naturalOrder().compare(((Map.Entry<?, Comparable>) first).getValue(), ((Map.Entry<?, Comparable>) second).getValue());
-        }
-
-        @Override
-        public Order reversed() {
-            return valueDecr;
-        }
-    },
-
-    /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.1-incubating, replaced by {@link org.apache.tinkerpop.gremlin.structure.Column#keys}.
-     */
-    @Deprecated
-    keyDecr {
-        @Override
-        public int compare(final Object first, final Object second) {
-            return Comparator.<Comparable>reverseOrder().compare(((Map.Entry<Comparable, ?>) first).getKey(), ((Map.Entry<Comparable, ?>) second).getKey());
-        }
-
-        @Override
-        public Order reversed() {
-            return keyIncr;
-        }
-    },
-
-    /**
-     * @since 3.0.0-incubating
-     * @deprecated As of release 3.1.1-incubating, replaced by {@link org.apache.tinkerpop.gremlin.structure.Column#values}.
-     */
-    @Deprecated
-    valueDecr {
-        @Override
-        public int compare(final Object first, final Object second) {
-            return Comparator.<Comparable>reverseOrder().compare(((Map.Entry<?, Comparable>) first).getValue(), ((Map.Entry<?, Comparable>) second).getValue());
-        }
-
-        @Override
-        public Order reversed() {
-            return valueIncr;
         }
     },
 
@@ -150,6 +85,44 @@ public enum Order implements Comparator<Object> {
         @Override
         public Order reversed() {
             return shuffle;
+        }
+    },
+
+    /**
+     * Order in ascending fashion
+     *
+     * @since 3.3.4
+     */
+    asc {
+        @Override
+        public int compare(final Object first, final Object second) {
+            return first instanceof Number && second instanceof Number
+                    ? NumberHelper.compare((Number) first, (Number) second)
+                    : Comparator.<Comparable>naturalOrder().compare((Comparable) first, (Comparable) second);
+        }
+
+        @Override
+        public Order reversed() {
+            return decr;
+        }
+    },
+
+    /**
+     * Order in descending fashion.
+     *
+     * @since 3.3.4
+     */
+    desc {
+        @Override
+        public int compare(final Object first, final Object second) {
+            return first instanceof Number && second instanceof Number
+                    ? NumberHelper.compare((Number) second, (Number) first)
+                    : Comparator.<Comparable>reverseOrder().compare((Comparable) first, (Comparable) second);
+        }
+
+        @Override
+        public Order reversed() {
+            return incr;
         }
     };
 

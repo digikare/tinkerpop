@@ -40,6 +40,7 @@ public final class Constants {
     public static final String GREMLIN_HADOOP_GRAPH_FILTER = "gremlin.hadoop.graphFilter";
     public static final String GREMLIN_HADOOP_DEFAULT_GRAPH_COMPUTER = "gremlin.hadoop.defaultGraphComputer";
     public static final String GREMLIN_HADOOP_VERTEX_PROGRAM_INTERCEPTOR = "gremlin.hadoop.vertexProgramInterceptor";
+    public static final String GREMLIN_HADOOP_GRAPHSON_VERSION = "gremlin.hadoop.graphSONVersion";
 
     public static final String GREMLIN_HADOOP_JARS_IN_DISTRIBUTED_CACHE = "gremlin.hadoop.jarsInDistributedCache";
     public static final String HIDDEN_G = Graph.Hidden.hide("g");
@@ -61,6 +62,8 @@ public final class Constants {
     public static final String GREMLIN_SPARK_SKIP_PARTITIONER = "gremlin.spark.skipPartitioner"; // don't partition the loadedGraphRDD
     public static final String GREMLIN_SPARK_SKIP_GRAPH_CACHE = "gremlin.spark.skipGraphCache";  // don't cache the loadedGraphRDD (ignores graphStorageLevel)
     public static final String SPARK_SERIALIZER = "spark.serializer";
+    public static final String SPARK_KRYO_REGISTRATOR = "spark.kryo.registrator";
+    public static final String SPARK_KRYO_REGISTRATION_REQUIRED = "spark.kryo.registrationRequired";
 
     public static String getGraphLocation(final String location) {
         return location.endsWith("/") ? location + Constants.HIDDEN_G : location + "/" + Constants.HIDDEN_G;
@@ -78,19 +81,4 @@ public final class Constants {
         else
             return Optional.empty();
     }
-
-    ///////////////////////
-    @Deprecated
-    public static final String GREMLIN_HADOOP_GRAPH_INPUT_FORMAT = "gremlin.hadoop.graphInputFormat";
-    @Deprecated
-    public static final String GREMLIN_HADOOP_GRAPH_OUTPUT_FORMAT = "gremlin.hadoop.graphOutputFormat";
-    @Deprecated
-    public static final String GREMLIN_HADOOP_GRAPH_INPUT_FORMAT_HAS_EDGES = "gremlin.hadoop.graphInputFormat.hasEdges";
-    @Deprecated
-    public static final String GREMLIN_HADOOP_GRAPH_OUTPUT_FORMAT_HAS_EDGES = "gremlin.hadoop.graphOutputFormat.hasEdges";
-    @Deprecated
-    public static final String GREMLIN_SPARK_GRAPH_INPUT_RDD = "gremlin.spark.graphInputRDD";
-    @Deprecated
-    public static final String GREMLIN_SPARK_GRAPH_OUTPUT_RDD = "gremlin.spark.graphOutputRDD";
-    //////////////////////
 }

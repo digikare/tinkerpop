@@ -231,15 +231,6 @@ public class Settings {
     public AuthenticationSettings authentication = new AuthenticationSettings();
 
     /**
-     * The list of plugins to enable for the server.  Plugins may be available on the classpath, but with this
-     * configuration it is possible to explicitly include or omit them.
-     *
-     * @deprecated As of release 3.2.5, replaced by specific {@link GremlinPlugin} settings on {@link #scriptEngines}
-     */
-    @Deprecated
-    public List<String> plugins = new ArrayList<>();
-
-    /**
      * Custom settings for {@link OpProcessor} implementations. Implementations are loaded via
      * {@link ServiceLoader} but custom configurations can be supplied through this configuration.
      */
@@ -410,7 +401,7 @@ public class Settings {
          * A {@link Map} containing {@link MessageSerializer} specific configurations. Consult the
          * {@link MessageSerializer} implementation for specifics on what configurations are expected.
          */
-        public Map<String, Object> config = null;
+        public Map<String, Object> config = Collections.emptyMap();
     }
 
     /**
@@ -439,6 +430,11 @@ public class Settings {
          * Defaults to null when not specified.
          */
         public String authenticationHandler = null;
+
+        /**
+         * Enable audit logging of authenticated users and gremlin evaluation requests.
+         */
+        public boolean enableAuditLog = false;
 
         /**
          * A {@link Map} containing {@link Authenticator} specific configurations. Consult the
@@ -630,17 +626,6 @@ public class Settings {
         public GangliaReporterMetrics() {
             // default ganglia port
             this.port = 8649;
-        }
-
-        public GMetric.UDPAddressingMode optionalAddressingMode() {
-            if (null == addressingMode)
-                return null;
-
-            try {
-                return GMetric.UDPAddressingMode.valueOf(addressingMode);
-            } catch (IllegalArgumentException iae) {
-                return null;
-            }
         }
     }
 

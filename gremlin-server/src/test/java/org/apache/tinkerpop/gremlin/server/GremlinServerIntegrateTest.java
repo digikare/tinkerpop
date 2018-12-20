@@ -44,11 +44,9 @@ import org.apache.tinkerpop.gremlin.driver.remote.DriverRemoteTraversalSideEffec
 import org.apache.tinkerpop.gremlin.driver.ser.Serializers;
 import org.apache.tinkerpop.gremlin.driver.simple.SimpleClient;
 import org.apache.tinkerpop.gremlin.groovy.jsr223.GremlinGroovyScriptEngine;
-import org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.CompileStaticCustomizerProvider;
-import org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.ConfigurationCustomizerProvider;
-import org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.InterpreterModeCustomizerProvider;
+import org.apache.tinkerpop.gremlin.groovy.jsr223.GroovyCompilerGremlinPlugin;
 import org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.SimpleSandboxExtension;
-import org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.TimedInterruptCustomizerProvider;
+import org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin;
 import org.apache.tinkerpop.gremlin.process.remote.RemoteGraph;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
@@ -62,7 +60,6 @@ import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertex;
-import org.apache.tinkerpop.gremlin.structure.util.empty.EmptyGraph;
 import org.apache.tinkerpop.gremlin.util.Log4jRecordingAppender;
 import org.apache.tinkerpop.gremlin.util.function.Lambda;
 import org.hamcrest.CoreMatchers;
@@ -75,7 +72,6 @@ import java.lang.reflect.Field;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -91,7 +87,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.apache.tinkerpop.gremlin.process.traversal.TraversalSource.GREMLIN_REMOTE_CONNECTION_CLASS;
+import static org.apache.tinkerpop.gremlin.groovy.jsr223.GroovyCompilerGremlinPlugin.Compilation.COMPILE_STATIC;
+import static org.apache.tinkerpop.gremlin.process.remote.RemoteConnection.GREMLIN_REMOTE_CONNECTION_CLASS;
+import static org.apache.tinkerpop.gremlin.process.traversal.AnonymousTraversalSource.traversal;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -288,15 +286,18 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
                 settings.ssl.sslCipherSuites = Arrays.asList("TLS_DHE_RSA_WITH_AES_128_CBC_SHA");
                 break;
             case "shouldUseSimpleSandbox":
-                settings.scriptEngines.get("gremlin-groovy").config = getScriptEngineConfForSimpleSandbox();
+                settings.scriptEngines.get("gremlin-groovy").plugins.put(GroovyCompilerGremlinPlugin.class.getName(), getScriptEngineConfForSimpleSandbox());
+                // remove the script because it isn't used in the test but also because it's not CompileStatic ready
+                settings.scriptEngines.get("gremlin-groovy").plugins.remove(ScriptFileGremlinPlugin.class.getName());
                 break;
             case "shouldUseInterpreterMode":
-                settings.scriptEngines.get("gremlin-groovy").config = getScriptEngineConfForInterpreterMode();
+                settings.scriptEngines.get("gremlin-groovy").plugins.put(GroovyCompilerGremlinPlugin.class.getName(), getScriptEngineConfForInterpreterMode());
                 break;
             case "shouldReceiveFailureTimeOutOnScriptEvalOfOutOfControlLoop":
-                settings.scriptEngines.get("gremlin-groovy").config = getScriptEngineConfForTimedInterrupt();
+                settings.scriptEngines.get("gremlin-groovy").plugins.put(GroovyCompilerGremlinPlugin.class.getName(), getScriptEngineConfForTimedInterrupt());
                 break;
             case "shouldUseBaseScript":
+                settings.scriptEngines.get("gremlin-groovy").plugins.put(GroovyCompilerGremlinPlugin.class.getName(), getScriptEngineConfForBaseScript());
                 settings.scriptEngines.get("gremlin-groovy").config = getScriptEngineConfForBaseScript();
                 break;
             case "shouldReturnInvalidRequestArgsWhenBindingCountExceedsAllowable":
@@ -336,43 +337,28 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
 
     private static Map<String, Object> getScriptEngineConfForSimpleSandbox() {
         final Map<String,Object> scriptEngineConf = new HashMap<>();
-        final Map<String,Object> compilerCustomizerProviderConf = new HashMap<>();
-        final List<String> sandboxes = new ArrayList<>();
-        sandboxes.add(SimpleSandboxExtension.class.getName());
-        compilerCustomizerProviderConf.put(CompileStaticCustomizerProvider.class.getName(), sandboxes);
-        scriptEngineConf.put("compilerCustomizerProviders", compilerCustomizerProviderConf);
+        scriptEngineConf.put("compilation", COMPILE_STATIC.name());
+        scriptEngineConf.put("extensions", SimpleSandboxExtension.class.getName());
         return scriptEngineConf;
     }
 
     private static Map<String, Object> getScriptEngineConfForTimedInterrupt() {
         final Map<String,Object> scriptEngineConf = new HashMap<>();
-        final Map<String,Object> timedInterruptProviderConf = new HashMap<>();
-        final List<Object> config = new ArrayList<>();
-        config.add(1000);
-        timedInterruptProviderConf.put(TimedInterruptCustomizerProvider.class.getName(), config);
-        scriptEngineConf.put("compilerCustomizerProviders", timedInterruptProviderConf);
+        scriptEngineConf.put("timedInterrupt", 1000);
         return scriptEngineConf;
     }
 
     private static Map<String, Object> getScriptEngineConfForInterpreterMode() {
         final Map<String,Object> scriptEngineConf = new HashMap<>();
-        final Map<String,Object> interpreterProviderConf = new HashMap<>();
-        interpreterProviderConf.put(InterpreterModeCustomizerProvider.class.getName(), Collections.EMPTY_LIST);
-        scriptEngineConf.put("compilerCustomizerProviders", interpreterProviderConf);
+        scriptEngineConf.put("enableInterpreterMode", true);
         return scriptEngineConf;
     }
 
     private static Map<String, Object> getScriptEngineConfForBaseScript() {
         final Map<String,Object> scriptEngineConf = new HashMap<>();
-        final Map<String,Object> compilerCustomizerProviderConf = new HashMap<>();
-        final List<Object> keyValues = new ArrayList<>();
-
         final Map<String,Object> properties = new HashMap<>();
         properties.put("ScriptBaseClass", BaseScriptForTesting.class.getName());
-        keyValues.add(properties);
-
-        compilerCustomizerProviderConf.put(ConfigurationCustomizerProvider.class.getName(), keyValues);
-        scriptEngineConf.put("compilerCustomizerProviders", compilerCustomizerProviderConf);
+        scriptEngineConf.put("compilerConfigurationOptions", properties);
         return scriptEngineConf;
     }
 
@@ -400,15 +386,17 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
         // there record
         Thread.sleep(3000);
 
-        assertThat(recordingAppender.logContainsAny(".*Checking channel - sending ping to client after idle period of .*$"), is(true));
-
         client.close();
+
+        // stop the server to be sure that logs flush
+        stopServer();
+
+        assertThat(recordingAppender.logContainsAny(".*Checking channel - sending ping to client after idle period of .*$"), is(true));
     }
 
     @Test
     public void shouldTimeOutRemoteTraversal() throws Exception {
-        final Graph graph = EmptyGraph.instance();
-        final GraphTraversalSource g = graph.traversal().withRemote(conf);
+        final GraphTraversalSource g = traversal().withRemote(conf);
 
         try {
             // tests sleeping thread
@@ -1060,7 +1048,7 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
 
     @Test
     public void shouldReceiveFailureOnBadGraphSONSerialization() throws Exception {
-        final Cluster cluster = TestClientFactory.build().serializer(Serializers.GRAPHSON_V1D0).create();
+        final Cluster cluster = TestClientFactory.build().serializer(Serializers.GRAPHSON_V3D0).create();
         final Client client = cluster.connect();
 
         try {
@@ -1217,8 +1205,7 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
 
     @Test
     public void shouldSupportLambdasUsingWithRemote() throws Exception {
-        final Graph graph = EmptyGraph.instance();
-        final GraphTraversalSource g = graph.traversal().withRemote(conf);
+        final GraphTraversalSource g = traversal().withRemote(conf);
         g.addV("person").property("age", 20).iterate();
         g.addV("person").property("age", 10).iterate();
         assertEquals(50L, g.V().hasLabel("person").map(Lambda.function("it.get().value('age') + 10")).sum().next());
@@ -1226,8 +1213,7 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
 
     @Test
     public void shouldGetSideEffectKeysUsingWithRemote() throws Exception {
-        final Graph graph = EmptyGraph.instance();
-        final GraphTraversalSource g = graph.traversal().withRemote(conf);
+        final GraphTraversalSource g = traversal().withRemote(conf);
         g.addV("person").property("age", 20).iterate();
         g.addV("person").property("age", 10).iterate();
         final GraphTraversal traversal = g.V().aggregate("a").aggregate("b");
@@ -1259,8 +1245,7 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
 
     @Test
     public void shouldCloseSideEffectsUsingWithRemote() throws Exception {
-        final Graph graph = EmptyGraph.instance();
-        final GraphTraversalSource g = graph.traversal().withRemote(conf);
+        final GraphTraversalSource g = traversal().withRemote(conf);
         g.addV("person").property("age", 20).iterate();
         g.addV("person").property("age", 10).iterate();
         final GraphTraversal traversal = g.V().aggregate("a").aggregate("b");
@@ -1310,8 +1295,7 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
 
     @Test
     public void shouldBlockWhenGettingSideEffectKeysUsingWithRemote() throws Exception {
-        final Graph graph = EmptyGraph.instance();
-        final GraphTraversalSource g = graph.traversal().withRemote(conf);
+        final GraphTraversalSource g = traversal().withRemote(conf);
         g.addV("person").property("age", 20).iterate();
         g.addV("person").property("age", 10).iterate();
         final GraphTraversal traversal = g.V().aggregate("a")
@@ -1353,8 +1337,7 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
 
     @Test
     public void shouldBlockWhenGettingSideEffectValuesUsingWithRemote() throws Exception {
-        final Graph graph = EmptyGraph.instance();
-        final GraphTraversalSource g = graph.traversal().withRemote(conf);
+        final GraphTraversalSource g = traversal().withRemote(conf);
         g.addV("person").property("age", 20).iterate();
         g.addV("person").property("age", 10).iterate();
         final GraphTraversal traversal = g.V().aggregate("a")
@@ -1396,8 +1379,7 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
 
     @Test
     public void shouldDoNonBlockingPromiseWithRemote() throws Exception {
-        final Graph graph = EmptyGraph.instance();
-        final GraphTraversalSource g = graph.traversal().withRemote(conf);
+        final GraphTraversalSource g = traversal().withRemote(conf);
         g.addV("person").property("age", 20).promise(Traversal::iterate).join();
         g.addV("person").property("age", 10).promise(Traversal::iterate).join();
         assertEquals(50L, g.V().hasLabel("person").map(Lambda.function("it.get().value('age') + 10")).sum().promise(t -> t.next()).join());

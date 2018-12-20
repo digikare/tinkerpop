@@ -35,7 +35,7 @@ dependencies into the classpath.  It is therefore important to ensure that Grape
 use the automated capabilities of plugin installation.  Grape is configured by `~/.groovy/grapeConfig.xml` and
 generally speaking, if that file is not present, the default settings will suffice.  However, they will not suffice
 if a required dependency is not in one of the default configured repositories. Please see the
-link:http://www.groovy-lang.org/Grape[Custom Ivy Settings] section of the Grape documentation for more details on
+link:http://www.groovy-lang.org/Grape#Grape-CustomizeIvysettings[Customize Ivy settings] section of the Grape documentation for more details on
 the defaults.  TinkerPop recommends the following configuration in that file:
 
 [source,xml]
@@ -47,26 +47,42 @@ the defaults.  TinkerPop recommends the following configuration in that file:
         <ivy pattern="${user.home}/.groovy/grapes/[organisation]/[module]/ivy-[revision].xml"/>
         <artifact pattern="${user.home}/.groovy/grapes/[organisation]/[module]/[type]s/[artifact]-[revision].[ext]"/>
       </filesystem>
-      <ibiblio name="central" root="http://central.maven.org/maven2/" m2compatible="true"/>
-      <ibiblio name="java.net2" root="http://download.java.net/maven/2/" m2compatible="true"/>
+      <ibiblio name="ibiblio" m2compatible="true"/>
     </chain>
   </resolvers>
 </ivysettings>
 
-The Graph configuration can also be modified to include the local system's Maven `.m2` directory by one or both
-of the following entries:
+The Graph configuration can also be modified to include the local system's Maven `.m2` directory:
 
 [source,xml]
-<ibiblio name="apache-snapshots" root="http://repository.apache.org/snapshots/" m2compatible="true"/>
-<ibiblio name="local" root="file:${user.home}/.m2/repository/" m2compatible="true"/>
+<ivysettings>
+  <settings defaultResolver="downloadGrapes"/>
+  <property name="m2-pattern" value="${user.home}/.m2/repository/org/apache/tinkerpop/[module]/[revision]/[module]-[revision](-[classifier]).[ext]" />
+  <property name="m2-pattern-ivy" value="${user.home}/.m2/repository/org/apache/tinkerpop/[module]/[revision]/[module]-[revision](-[classifier]).pom" />
+  <caches>
+    <cache name="nocache" useOrigin="true" />
+  </caches>
+  <resolvers>
+    <chain name="downloadGrapes">
+      <!-- https://mvmn.wordpress.com/2016/02/02/grape-config-for-local-maven-repo/ -->
+      <filesystem name="local-maven2" checkmodified="true" changingPattern=".*" changingMatcher="regexp" m2compatible="true" cache="nocache">
+        <artifact pattern="${m2-pattern}"/>
+        <ivy pattern="${m2-pattern-ivy}"/>
+      </filesystem>
+      <filesystem name="cachedGrapes">
+        <ivy pattern="${user.home}/.groovy/grapes/[organisation]/[module]/ivy-[revision].xml"/>
+        <artifact pattern="${user.home}/.groovy/grapes/[organisation]/[module]/[type]s/[artifact]-[revision].[ext]"/>
+      </filesystem>
+      <ibiblio name="ibiblio" m2compatible="true"/>
+      <ibiblio name="local" root="file:${user.home}/.m2/repository/" m2compatible="true"/>
+    </chain>
+  </resolvers>
+</ivysettings>
 
 These configurations are useful during development (i.e. if one is working with locally built artifacts) of TinkerPop
 Plugins.  It is important to take note of the order used for these references as Grape will check them in the order
 they are specified and depending on that order, an artifact other than the one expected may be used which is typically
 an issue when working with SNAPSHOT dependencies.
-
-WARNING: If building TinkerPop from source, be sure to clear TinkerPop-related jars from the `~/.groovy/grapes`
-directory as they can become stale on some systems and not re-import properly from the local `.m2` after fresh rebuilds.
 
 [[gremlin-console]]
 == Gremlin Console
@@ -127,7 +143,7 @@ TIP: When using Gremlin-Groovy in a Groovy class file, add `static { GremlinLoad
 
 === Console Commands
 
-In addition to the standard commands of the link:http://www.groovy-lang.org/Groovy+Shell[Groovy Shell], Gremlin adds
+In addition to the standard commands of the link:http://groovy-lang.org/groovysh.html[Groovy Shell], Gremlin adds
 some other useful operations.  The following table outlines the most commonly used commands:
 
 [width="100%",cols="3,^2,10",options="header"]
@@ -143,7 +159,27 @@ some other useful operations.  The following table outlines the most commonly us
 |:plugin |:pin |Plugin management functions to list, activate and deactivate available plugins.
 |:remote |:rem |Configures a "remote" context where Gremlin or results of Gremlin will be processed via usage of `:submit`.
 |:submit |:> |Submit Gremlin to the currently active context defined by `:remote`.
+|:bytecode |:bc |Provides options for translating and evaluating `Bytecode` for debugging purposes.
 |=========================================================
+
+Many of the above commands are described elsewhere or are generally self explanatory, but the `:bytecode` command
+could use some additional explanation. The following code shows example usage:
+
+[source,text]
+----
+gremlin> :bytecode from g.V().out('knows')  <1>
+==>{"@type":"g:Bytecode","@value":{"step":[["V"],["out","knows"]]}}
+gremlin> :bytecode translate g {"@type":"g:Bytecode","@value":{"step":[["V"],["out","knows"]]}} <2>
+==>g.V().out("knows")
+----
+
+<1> Generates a GraphSON 3.0 representation of the traversal as bytecode.
+<2> Converts bytecode in GraphSON 3.0 format to a traversal string.
+
+NOTE: The Console does expose the `:record` command which is inherited from the Groovy Shell. This command works well
+with local commands, but may record session outputs differently for `:remote` commands. If there is a need to use
+`:record` it may be best to manually create a `Cluster` object and issue commands that way so that they evaluate
+locally in the shell.
 
 [[console-preferences]]
 === Console Preferences
@@ -411,7 +447,8 @@ exposes a custom sub-protocol for interacting with the server.
 
 WARNING: Gremlin Server allows for the execution of remotely submitted "scripts" (i.e. arbitrary code sent by a client
 to the server). Developers should consider the security implications involved in running Gremlin Server without the
-appropriate precautions. Please review the <<script-execution,Script Execution Section>> for more information.
+appropriate precautions. Please review the <<security,Security Section>> and more specifically, the
+<<script-execution,Script Execution Section>> for more information.
 
 [[starting-gremlin-server]]
 === Starting Gremlin Server
@@ -427,23 +464,26 @@ $ bin/gremlin-server.sh conf/gremlin-server-modern.yaml
          (o o)
 -----oOOo-(3)-oOOo-----
 
-[INFO] GremlinServer - Configuring Gremlin Server from conf/gremlin-server-modern.yaml
+[INFO] GremlinServer - Configuring Gremlin Server from /home/smallette/git/apache/incubator-tinkerpop/gremlin-server/target/apache-tinkerpop-gremlin-server-3.3.0-SNAPSHOT-standalone/conf/gremlin-server.yaml
+[INFO] MetricManager - Configured Metrics ConsoleReporter configured with report interval=180000ms
+[INFO] MetricManager - Configured Metrics CsvReporter configured with report interval=180000ms to fileName=/tmp/gremlin-server-metrics.csv
+[INFO] MetricManager - Configured Metrics JmxReporter configured with domain= and agentId=
 [INFO] MetricManager - Configured Metrics Slf4jReporter configured with interval=180000ms and loggerName=org.apache.tinkerpop.gremlin.server.Settings$Slf4jReporterMetrics
-[INFO] GraphManager - Graph [graph] was successfully configured via [conf/tinkergraph-empty.properties].
+[INFO] DefaultGraphManager - Graph [graph] was successfully configured via [conf/tinkergraph-empty.properties].
 [INFO] ServerGremlinExecutor - Initialized Gremlin thread pool.  Threads in pool named with pattern gremlin-*
-[INFO] ScriptEngines - Loaded gremlin-groovy ScriptEngine
-[INFO] GremlinExecutor - Initialized gremlin-groovy ScriptEngine with scripts/generate-modern.groovy
-[INFO] ServerGremlinExecutor - Initialized GremlinExecutor and configured ScriptEngines.
+[INFO] ServerGremlinExecutor - Initialized GremlinExecutor and preparing GremlinScriptEngines instances.
+[INFO] ServerGremlinExecutor - Initialized gremlin-groovy GremlinScriptEngine and registered metrics
 [INFO] ServerGremlinExecutor - A GraphTraversalSource is now bound to [g] with graphtraversalsource[tinkergraph[vertices:0 edges:0], standard]
 [INFO] OpLoader - Adding the standard OpProcessor.
-[INFO] OpLoader - Adding the control OpProcessor.
 [INFO] OpLoader - Adding the session OpProcessor.
 [INFO] OpLoader - Adding the traversal OpProcessor.
 [INFO] TraversalOpProcessor - Initialized cache for TraversalOpProcessor with size 1000 and expiration time of 600000 ms
 [INFO] GremlinServer - Executing start up LifeCycleHook
 [INFO] Logger$info - Loading 'modern' graph data.
-[INFO] AbstractChannelizer - Configured application/vnd.gremlin-v1.0+gryo with org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0
-[INFO] AbstractChannelizer - Configured application/vnd.gremlin-v1.0+gryo-stringd with org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0
+[INFO] AbstractChannelizer - Configured application/vnd.gremlin-v3.0+gryo with org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV3d0
+[INFO] AbstractChannelizer - Configured application/vnd.gremlin-v3.0+gryo-stringd with org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV3d0
+[INFO] AbstractChannelizer - Configured application/vnd.gremlin-v3.0+json with org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV3d0
+[INFO] AbstractChannelizer - Configured application/json with org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV3d0
 [INFO] GremlinServer$1 - Gremlin Server configured with worker thread pool of 1, gremlin pool of 8 and boss thread pool of 1.
 [INFO] GremlinServer$1 - Channel started at port 8182.
 ----
@@ -539,12 +579,13 @@ as "objects":
 m = result[0].object <4>
 m.sort {it.value}
 script = """
-         g.addV('person',).property('name','matthias').as('matthias').
-           V().has('person','name','marko').as('marko').
-           addE('co-creator').from('matthias').to('marko')
+         g.V().hasLabel('person').
+           out('knows').
+           out('created').
+           group().
+             by('name')
          """
 :> @script   <5>
-:> g.V().has('name','matthias').out('co-creator').values('name')
 :remote close
 ----
 
@@ -604,6 +645,7 @@ for purposes of execution within the context of a script.  Therefore, it becomes
 :remote connect tinkerpop.server conf/remote-objects.yaml
 :remote config alias x g
 :> x.E().label().groupCount()
+:remote close
 ----
 
 [[console-sessions]]
@@ -612,9 +654,10 @@ for purposes of execution within the context of a script.  Therefore, it becomes
 A `:remote` created in the following fashion will be "sessionless", meaning each script issued to the server with
 `:>` will be encased in a transaction and no state will be maintained from one request to the next.
 
-[gremlin-groovy]
+[source,groovy]
 ----
-:remote connect tinkerpop.server conf/remote-objects.yaml
+gremlin> :remote connect tinkerpop.server conf/remote-objects.yaml
+==>Configured localhost/127.0.0.1:8182
 ----
 
 In other words, the transaction will be automatically committed (or rolledback on error) and any variables declared
@@ -629,6 +672,7 @@ To enable the remote to connect with a session the `connect` argument takes anot
 :> x = 1
 :> y = 2
 :> x + y
+:remote close
 ----
 
 With the above command a session gets created with a random UUID for a session identifier. It is also possible to
@@ -652,6 +696,7 @@ x = 1
 y = 2
 x + y
 :remote console
+:remote close
 ----
 
 In the above example, the `:remote console` command is executed. It places the console in a state where the `:>` is
@@ -742,8 +787,7 @@ The following table describes the various configuration options for the Gremlin 
 |connectionPool.minInProcessPerConnection |The minimum number of in-flight requests that can occur on a connection. |1
 |connectionPool.minSimultaneousUsagePerConnection |The maximum number of times that a connection can be borrowed from the pool simultaneously. |8
 |connectionPool.minSize |The minimum size of a connection pool for a host. |2
-|connectionPool.reconnectInitialDelay |The amount of time in milliseconds to wait before trying to reconnect to a dead host for the first time. |1000
-|connectionPool.reconnectInterval |The amount of time in milliseconds to wait before trying to reconnect to a dead host. This interval occurs after the time specified by the `reconnectInitialDelay`. |1000
+|connectionPool.reconnectInterval |The amount of time in milliseconds to wait before trying to reconnect to a dead host. |1000
 |connectionPool.resultIterationBatchSize |The override value for the size of the result batches to be returned from the server. |64
 |connectionPool.sslCipherSuites |The list of JSSE ciphers to support for SSL connections. If specified, only the ciphers that are listed and supported will be enabled. If not specified, the JVM default is used.  |_none_
 |connectionPool.sslEnabledProtocols |The list of SSL protocols to support for SSL connections. If specified, only the protocols that are listed and supported will be enabled. If not specified, the JVM default is used.  |_none_
@@ -755,9 +799,10 @@ The following table describes the various configuration options for the Gremlin 
 |jaasEntry |Sets the `AuthProperties.Property.JAAS_ENTRY` properties for authentication to Gremlin Server. |_none_
 |nioPoolSize |Size of the pool for handling request/response operations. |available processors
 |password |The password to submit on requests that require authentication. |_none_
+|path |The URL path to the Gremlin Server. |_/gremlin_
 |port |The port of the Gremlin Server to connect to. The same port will be applied for all hosts. |8192
 |protocol |Sets the `AuthProperties.Property.PROTOCOL` properties for authentication to Gremlin Server. |_none_
-|serializer.className |The fully qualified class name of the `MessageSerializer` that will be used to communicate with the server. Note that the serializer configured on the client should be supported by the server configuration. |`GryoMessageSerializerV1d0`
+|serializer.className |The fully qualified class name of the `MessageSerializer` that will be used to communicate with the server. Note that the serializer configured on the client should be supported by the server configuration. |_none_
 |serializer.config |A `Map` of configuration settings for the serializer. |_none_
 |username |The username to submit on requests that require authentication. |_none_
 |workerPoolSize |Size of the pool for handling background work. |available processors * 2
@@ -799,7 +844,7 @@ This can be done manually as follows:
 
 [source,java]
 GryoMapper kryo = GryoMapper.build().addRegistry(TitanIoRegistry.INSTANCE).create();
-MessageSerializer serializer = new GryoMessageSerializerV1d0(kryo);
+MessageSerializer serializer = new GryoMessageSerializerV3d0(kryo);
 Cluster cluster = Cluster.build()
                 .serializer(serializer)
                 .create();
@@ -881,16 +926,16 @@ can be passed to the `Client` instance as keyword arguments:
 |username |The username to submit on requests that require authentication. |""
 |=========================================================
 
-=== Connecting via REST
+=== Connecting via HTTP
 
 image:gremlin-rexster.png[width=225,float=left] While the default behavior for Gremlin Server is to provide a
-WebSocket-based connection, it can also be configured to support link:http://en.wikipedia.org/wiki/Representational_state_transfer[REST].
-The REST endpoint provides for a communication protocol familiar to most developers, with a wide support of
-programming languages, tools and libraries for accessing it.  As a result, REST provides a fast way to get started
+WebSocket-based connection, it can also be configured to support plain HTTP web service.
+The HTTP endpoint provides for a communication protocol familiar to most developers, with a wide support of
+programming languages, tools and libraries for accessing it.  As a result, HTTP provides a fast way to get started
 with Gremlin Server.   It also may represent an easier upgrade path from link:https://github.com/tinkerpop/rexster[Rexster]
 as the API for the endpoint is very similar to Rexster's link:https://github.com/tinkerpop/rexster/wiki/Gremlin-Extension[Gremlin Extension].
 
-Gremlin Server provides for a single REST endpoint - a Gremlin evaluator - which allows the submission of a Gremlin
+Gremlin Server provides for a single HTTP endpoint - a Gremlin evaluator - which allows the submission of a Gremlin
 script as a request.  For each request, it returns a response containing the serialized results of that script.
 To enable this endpoint, Gremlin Server needs to be configured with the `HttpChannelizer`, which replaces the default. The `WsAndHttpChannelizer` may also be configured to enable both WebSockets and the REST endpoint.
 `WebSocketChannelizer`, in the configuration file:
@@ -960,7 +1005,7 @@ curl -X POST -d "{\"gremlin\":\"100-x\", \"language\":\"gremlin-groovy\", \"bind
 By default this value is set to `gremlin-groovy`.  If using a `GET` operation, this value can be set as a query
 string argument with by setting the `language` key.
 
-WARNING: Consider the size of the result of a submitted script being returned from the REST endpoint.  A script
+WARNING: Consider the size of the result of a submitted script being returned from the HTTP endpoint.  A script
 that iterates thousands of results will serialize each of those in memory into a single JSON result set.  It is
 quite possible that such a script will generate `OutOfMemoryError` exceptions on the server.  Consider the default
 WebSocket configuration, which supports streaming, if that type of use case is required.
@@ -977,12 +1022,13 @@ WebSocket configuration, which supports streaming, if that type of use case is r
 </dependency>
 ----
 
-image:remote-graph.png[width=145,float=left] A `TraversalSource` has several `withRemote()` methods which provide an
-interesting alternative to the other methods for connecting to Gremlin Server. It is interesting in that all other
-methods involve construction of a `String` representation of the `Traversal` which is then submitted as a script
-to Gremlin Server (via driver or REST). This approach is quite akin to SQL, where query strings are embedded into code
-and submitted to a database server. While there are patterns for taking this approach that can lead to maintainable
-application code, using `withRemote()` could be a better method as it brings some good benefits with it:
+image:remote-graph.png[width=145,float=left] A `TraversalSource` can be configured for "remote" execution which
+provides an interesting alternative to the other methods for connecting to Gremlin Server. It is interesting in that
+all other methods involve construction of a `String` representation of the `Traversal` which is then submitted as a
+script to Gremlin Server (via driver or HTTP). This approach is quite akin to SQL, where query strings are embedded
+into code and submitted to a database server. While there are patterns for taking this approach that can lead to
+maintainable application code, using a "remote" traversal could be a better method as it brings some good benefits
+with it:
 
 * Get auto-complete when writing traversals in an IDE.
 * Get compile-time errors in traversal writing.
@@ -1006,49 +1052,46 @@ connecting to Gremlin Server. Please see the <<connecting-via-java, "Connecting 
 information on those classes and their usage. Finally, the `gremlin.remote.driver.sourceName` setting tells the
 `DriverRemoteConnection` the name of the `TraversalSource` in Gremlin Server to connect to.
 
-IMPORTANT: Gremlin Server supports configurable serialization options. The `withRemote()` feature works best with
-Gryo serialization. While it is compatible with GraphSON, unknown incompatibilities may arise
-
 Gremlin Server needs to be running for this example to work. Use the following configuration:
 
 [source,bourne]
 $ bin/gremlin-server.sh conf/gremlin-server-modern.yaml
 
-To configure a "remote" traversal, there first needs to be a `TraversalSource`. A `TraversalSource` can be generated
-from any `Graph` instance with the `traversal()` method. Of course, any traversals generated from this source using the
-`withRemote()` configuration option will not execute against the local graph. That could be confusing and it may be
-easier to think of the local graph as being "empty". To that end, it is recommended that when using `withRemote()`,
-the `TraversalSource` be generated with `EmptyGraph` as follows:
+There are several ways to configure a "remote" traversal, but the most direct way is to use the helper methods on
+`AnonymousTraversalSource`. These methods can be statically imported:
+
+[source,java]
+import static org.apache.tinkerpop.gremlin.process.traversal.AnonymousTraversalSource.traversal;
+
+to allow for syntax as follows:
 
 [gremlin-groovy]
 ----
-graph = EmptyGraph.instance()
-g = graph.traversal().withRemote('conf/remote-graph.properties')
+g = traversal().withRemote('conf/remote-graph.properties')
 g.V().valueMap(true)
 g.close()
 ----
 
-Note the call to `close()` above. The call to `withRemote()` internally instantiates a `Client` instance that can only
-be released by "closing" the `GraphTraversalSource`. It is important to take that step to release resources created
-in that step.
+Note the call to `close()` above. The construction of "g" using the properties file internally instantiates a
+`Client` instance that can only be released by "closing" the `GraphTraversalSource`. It is important to take that
+step to release resources created in that step.
 
-If working with multiple remote `TraversalSource` instances it is more efficient to construct a `Cluster` object and
+If working with multiple remote `TraversalSource` instances it is more efficient to construct a `Client` object and
 then re-use it.
 
 [gremlin-groovy]
 ----
 cluster = Cluster.open('conf/remote-objects.yaml')
-graph = EmptyGraph.instance()
-g = graph.traversal().withRemote(DriverRemoteConnection.using(cluster, "g"))
+client = cluster.connect()
+g = traversal().withRemote(DriverRemoteConnection.using(client, "g"))
 g.V().valueMap(true)
 g.close()
 cluster.close()
 ----
 
-If the `Cluster` instance is supplied externally, as is shown above, then it is not closed implicitly by the close of
-"g".  Closing "g" will only close the `Client` instance associated with that `TraversalSource`. In this case, the
-`Cluster` must also be closed explicitly. Closing "g" and the "cluster" aren't actually both necessary - the close of
-a `Cluster` will close all `Client` instance spawned by the `Cluster`.
+If the `Client` instance is supplied externally, as is shown above, then it is not closed implicitly by the close of
+"g".  In this case, the `Client` and `Cluster` must both be closed explicitly. Closing "g" and the "cluster" aren'
+t actually both necessary - the close of a `Cluster` will close all `Client` instance spawned by the `Cluster`.
 
 IMPORTANT: `RemoteGraph` uses the `TraversalOpProcessor` in Gremlin Server which requires a cache to enable the
 retrieval of side-effects (if the `Traversal` produces any). That cache can be configured (e.g. controlling eviction
@@ -1062,8 +1105,9 @@ Gremlin-Groovy, use `Bindings`.
 [gremlin-groovy]
 ----
 cluster = Cluster.open('conf/remote-objects.yaml')
+client = cluster.connect()
 b = Bindings.instance()
-g = EmptyGraph.instance().traversal().withRemote(DriverRemoteConnection.using(cluster, "g"))
+g = traversal().withRemote(DriverRemoteConnection.using(client, "g"))
 g.V(b.of('id',1)).out('created').values('name')
 g.V(b.of('id',4)).out('created').values('name')
 g.V(b.of('id',4)).out('created').values('name').getBytecode()
@@ -1076,8 +1120,51 @@ can be cached for faster evaluation on the next submission.
 
 === Configuring
 
+The `gremlin-server.sh` file serves multiple purposes.  It can be used to "install" dependencies to the Gremlin
+Server path.  For example, to be able to configure and use other `Graph` implementations, the dependencies must be
+made available to Gremlin Server.  To do this, use the `install` switch and supply the Maven coordinates for the dependency
+to "install".  For example, to use Neo4j in Gremlin Server:
+
+[source,text]
+----
+bin/gremlin-server.sh install org.apache.tinkerpop neo4j-gremlin x.y.z
+----
+
+This command will "grab" the appropriate dependencies and copy them to the `ext` directory of Gremlin Server, which
+will then allow them to be "used" the next time the server is started.  To uninstall dependencies, simply delete them
+from the `ext` directory.
+
+`bin/gremlin-server.sh` has several other options.
+
+[width="100%",cols="3,10",options="header"]
+|=========================================================
+|Parameter|Description
+|start|Start the server in the background.
+|stop|Shutdown the server.
+|restart|Shutdown a running server then start it again.
+|status|Check if the server is running.
+|console|Start the server in the foreground. Use ^C to kill it.
+|install <group> <artifact> <version>| Install dependencies into the server. "-i" exists for backwards compatibility but is deprecated.
+|<conf file>| Start the server in the foreground using the provided YAML config file.
+|=========================================================
+
+The `bin/gremlin-server.sh` script can be customized with environment variables in `bin/gremlin-server.conf`.
+
+[width="100%",cols="3,10",options="header"]
+|=========================================================
+|Variable |Description
+|DEBUG| Enable debugging of the startup script
+|GREMLIN_HOME| The Gremlin Server install directory. Use this if the script has trouble finding itself.
+|GREMLIN_YAML| The default server YAML file (conf/gremlin-server.yaml)
+|LOG_DIR| Location of gremlin.log where stdout/stderr are captured (logs/)
+|PID_DIR| Location of gremlin.pid
+|RUNAS| User to run the server as
+|JAVA_HOME| Java install location. Will use $JAVA_HOME/bin/java
+|JAVA_OPTIONS| Options passed to the JVM
+|=========================================================
+
 As mentioned earlier, Gremlin Server is configured though a YAML file.  By default, Gremlin Server will look for a
-file called `conf/gremlin-server.yaml` to configure itself on startup.  To override this default, supply the file
+file called `conf/gremlin-server.yaml` to configure itself on startup.  To override this default, set GREMLIN_YAML in `bin/gemlin-server.conf` or supply the file
 to use to `bin/gremlin-server.sh` as in:
 
 [source,text]
@@ -1085,21 +1172,9 @@ to use to `bin/gremlin-server.sh` as in:
 bin/gremlin-server.sh conf/gremlin-server-min.yaml
 ----
 
-The `gremlin-server.sh` file also serves a second purpose.  It can be used to "install" dependencies to the Gremlin
-Server path.  For example, to be able to configure and use other `Graph` implementations, the dependencies must be
-made available to Gremlin Server.  To do this, use the `-i` switch and supply the Maven coordinates for the dependency
-to "install".  For example, to use Neo4j in Gremlin Server:
+WARNING: On Windows, gremlin-server.bat will always start in the foreground. When no parameter is provided, it will start with the default `conf/gremlin-server.yaml` file.
 
-[source,text]
-----
-bin/gremlin-server.sh -i org.apache.tinkerpop neo4j-gremlin x.y.z
-----
-
-This command will "grab" the appropriate dependencies and copy them to the `ext` directory of Gremlin Server, which
-will then allow them to be "used" the next time the server is started.  To uninstall dependencies, simply delete them
-from the `ext` directory.
-
-The following table describes the various configuration options that Gremlin Server expects:
+The following table describes the various YAML configuration options that Gremlin Server expects:
 
 [width="100%",cols="3,10,^2",options="header"]
 |=========================================================
@@ -1107,6 +1182,7 @@ The following table describes the various configuration options that Gremlin Ser
 |authentication.authenticator |The fully qualified classname of an `Authenticator` implementation to use.  If this setting is not present, then authentication is effectively disabled. |`AllowAllAuthenticator`
 |authentication.authenticationHandler | The fully qualified classname of an `AbstractAuthenticationHandler` implementation to use. If this setting is not present, but the `authentication.authenticator` is, it will use that authenticator with the default `AbstractAuthenticationHandler` implementation for the specified `Channelizer` |_none_
 |authentication.config |A `Map` of configuration settings to be passes to the `Authenticator` when it is constructed.  The settings available are dependent on the implementation. |_none_
+|authentication.enableAuditLog |The available authenticators can issue audit logging messages, binding the authenticated user to his remote socket address and binding requests with a gremlin query to the remote socket address. For privacy reasons, the default value of this setting is false. The audit logging messages are logged at the INFO level via the `audit.org.apache.tinkerpop.gremlin.server` logger, which can be configured using the log4j.properties file. |false
 |channelizer |The fully qualified classname of the `Channelizer` implementation to use.  A `Channelizer` is a "channel initializer" which Gremlin Server uses to define the type of processing pipeline to use.  By allowing different `Channelizer` implementations, Gremlin Server can support different communication protocols (e.g. WebSocket, Java NIO, etc.). |`WebSocketChannelizer`
 |graphManager |The fully qualified classname of the `GraphManager` implementation to use.  A `GraphManager` is a class that adheres to the TinkerPop `GraphManager` interface, allowing custom implementations for storing and managing graph references, as well as defining custom methods to open and close graphs instantiations. It is important to note that the TinkerPop HTTP and WebSocketChannelizers auto-commit and auto-rollback based on the graphs stored in the graphManager upon script execution completion. |`DefaultGraphManager`
 |graphs |A `Map` of `Graph` configuration files where the key of the `Map` becomes the name to which the `Graph` will be bound and the value is the file name of a `Graph` configuration file. |_none_
@@ -1125,11 +1201,11 @@ The following table describes the various configuration options that Gremlin Ser
 |metrics.csvReporter.fileName |The file to write metrics to. |_none_
 |metrics.csvReporter.interval |Time in milliseconds between reports of metrics to file. |180000
 |metrics.gangliaReporter.addressingMode |Set to `MULTICAST` or `UNICAST`. |_none_
-|metrics.gangliaReporter.enabled |Turns on Ganglia reporting of metrics. |false
+|metrics.gangliaReporter.enabled |Turns on Ganglia reporting of metrics. Additional link:http://tinkerpop.apache.org/docs/3.3.0/reference/#metrics[setup] is required. |false
 |metrics.gangliaReporter.host |Define the Ganglia host to report Metrics to. |localhost
 |metrics.gangliaReporter.interval |Time in milliseconds between reports of metrics for Ganglia. |180000
 |metrics.gangliaReporter.port |Define the Ganglia port to report Metrics to. |8649
-|metrics.graphiteReporter.enabled |Turns on Graphite reporting of metrics. |false
+|metrics.graphiteReporter.enabled |Turns on Graphite reporting of metrics. Additional link:http://tinkerpop.apache.org/docs/3.3.0/reference/#metrics[setup] is required. |false
 |metrics.graphiteReporter.host |Define the Graphite host to report Metrics to. |localhost
 |metrics.graphiteReporter.interval |Time in milliseconds between reports of metrics for Graphite. |180000
 |metrics.graphiteReporter.port |Define the Graphite port to report Metrics to. |2003
@@ -1137,7 +1213,6 @@ The following table describes the various configuration options that Gremlin Ser
 |metrics.jmxReporter.enabled |Turns on JMX reporting of metrics. |false
 |metrics.slf4jReporter.enabled |Turns on SLF4j reporting of metrics. |false
 |metrics.slf4jReporter.interval |Time in milliseconds between reports of metrics to SLF4j. |180000
-|plugins |A list of plugins that should be activated on server startup in the available script engines. It assumes that the plugins are in Gremlin Server's classpath. |_none_
 |port |The port to bind the server to. |8182
 |processors |A `List` of `Map` settings, where each `Map` represents a `OpProcessor` implementation to use along with its configuration. |_none_
 |processors[X].className |The full class name of the `OpProcessor` implementation. |_none_
@@ -1169,11 +1244,7 @@ The following table describes the various configuration options that Gremlin Ser
 |writeBufferLowWaterMark | Once the number of bytes queued in the network send buffer exceeds the `writeBufferHighWaterMark`, the channel will not become writeable again until the buffer is drained and it drops below this value. |65536
 |=========================================================
 
-NOTE: Configuration of link:http://ganglia.sourceforge.net/[Ganglia] requires an additional library that is not
-packaged with Gremlin Server due to its LGPL licensing that conflicts with the TinkerPop's Apache 2.0 License.  To
-run Gremlin Server with Ganglia monitoring, download the `org.acplt:oncrpc` jar from
-link:http://repo1.maven.org/maven2/org/acplt/oncrpc/1.0.7/[here] and copy it to the Gremlin Server `/lib` directory
-before starting the server.
+See the <<metrics,Metrics>> section for more information on how to configure Ganglia and Graphite.
 
 [[opprocessor-configurations]]
 ==== OpProcessor Configurations
@@ -1227,27 +1298,50 @@ The `TraversalOpProcessor` provides a way to use <<connecting-via-remotegraph,Re
 |cacheMaxSize |The maximum number of entries in the side-effect cache. |1000
 |=========================================================
 
-==== Security and Execution
+[[security]]
+==== Security
 
 image:gremlin-server-secure.png[width=175,float=right] Gremlin Server provides for several features that aid in the
-security of the graphs that it exposes.  It has built in SSL support and a pluggable authentication framework using
+security of the graphs that it exposes.  In particular it supports SSL for transport layer security, protective measures against
+malicious script execution, and authentication.  SSL options are described in the configuration settings table in the
+<<connecting-via-java, "Connecting via Java">> section. Script execution options are covered
+<<script-execution, "at the end of this section">>. This section starts with authentication.
+
+
+Gremlin Server supports a pluggable authentication framework using
 link:https://en.wikipedia.org/wiki/Simple_Authentication_and_Security_Layer[SASL] (Simple Authentication and
-Security Layer).  SSL options are described in the configuration settings table above, so this section will focus on
-authentication.
+Security Layer). Depending on the client used to connect to Gremlin Server, different authentication
+mechanisms are accessible, see the table below.
+
+[width="70%",cols="3,5,3",options="header"]
+|=========================================================
+|Client |Authentication mechanism |Availability
+|HTTP |BASIC |3.0.0-incubating
+1.3+v|Gremlin-Java/
+Gremlin-Console |PLAIN SASL (username/password) |3.0.0-incubating
+|Pluggable SASL |3.0.0-incubating
+|GSSAPI SASL (Kerberos) |3.3.0
+|Gremlin-Python |PLAIN SASL |3.2.2
+|Gremlin.Net |PLAIN SASL |3.2.7
+|Gremlin-Javascript |PLAIN SASL |3.3.0
+|=========================================================
 
 By default, Gremlin Server is configured to allow all requests to be processed (i.e. no authentication).  To enable
 authentication, Gremlin Server must be configured with an `Authenticator` implementation in its YAML file.  Gremlin
-Server comes packaged with an implementation called `SimpleAuthenticator`.  The `SimpleAuthenticator` implements the
-`PLAIN` SASL mechanism (i.e. plain text) to authenticate a request.  It validates username/password pairs against a
-graph database, which must be provided to it as part of the configuration.
+Server comes packaged with two implementations called `SimpleAuthenticator` for plain text authentication using HTTP BASIC or
+PLAIN SASL and `Krb5Authenticator` for Kerberos authentication using GSSAPI SASL.
+
+===== Plain text authentication
+
+The `SimpleAuthenticator` implements the "PLAIN" SASL mechanism (i.e. plain text) to authenticate a request.  It also
+supports handling basic authentication requests from http clients. It validates
+username/password pairs against a graph database, which must be provided to it as part of the configuration.
 
 [source,yaml]
 authentication: {
   authenticator: org.apache.tinkerpop.gremlin.server.auth.SimpleAuthenticator,
   config: {
     credentialsDb: conf/tinkergraph-credentials.properties}}
-
-===== Quick Start
 
 A quick way to get started with the `SimpleAuthenticator` is to use TinkerGraph for the "credentials graph" and the
 "sample" credential graph that is packaged with the server.  To secure the transport for the credentials,
@@ -1358,9 +1452,9 @@ the `Graph`, consider specifying a unique constraint as well.
 
 To aid with the management of a credentials graph, Gremlin Server provides a Gremlin Console plugin which can be
 used to add and remove users so as to ensure that the schema is adhered to, thus ensuring compatibility with Gremlin
- Server.  In addition, as it is a plugin, it works naturally in the Gremlin Console as an extension of its
- capabilities (though one could use it programmatically, if desired).  This plugin is distributed with the Gremlin
- Console so it does not have to be "installed".  It does however need to be activated:
+Server. In addition, as it is a plugin, it works naturally in the Gremlin Console as an extension of its
+capabilities (though one could use it programmatically, if desired). This plugin is distributed with the Gremlin
+Console so it does not have to be "installed". It does however need to be activated:
 
 [source,groovy]
 gremlin> :plugin use tinkerpop.credentials
@@ -1372,20 +1466,68 @@ Please see the example usage as follows:
 ----
 graph = TinkerGraph.open()
 graph.createIndex("username",Vertex.class)
-credentials = credentials(graph)
-credentials.createUser("stephen","password")
-credentials.createUser("daniel","better-password")
-credentials.createUser("marko","rainbow-dash")
-credentials.findUser("marko").properties()
-credentials.countUsers()
-credentials.removeUser("daniel")
-credentials.countUsers()
+credentials = graph.traversal(CredentialTraversalSource.class)
+credentials.user("stephen","password")
+credentials.user("daniel","better-password")
+credentials.user("marko","rainbow-dash")
+credentials.users("marko").valueMap()
+credentials.users().count()
+credentials.users("daniel").drop()
+credentials.users().count()
 ----
 
-[[script-execution]]
-===== Script Execution
+NOTE: The Credentials DSL is built using TinkerPop's DSL Annotation Processor described <<gremlin-java-dsl,here>>.
 
-It is important to remember that Gremlin Server exposes a `ScriptEngine` instance that allows for remote execution
+IMPORTANT: In the above example, an empty in-memory TinkerGraph was used for demonstrating the API of the DSL.
+Obviously, this data will not be retained and usable with Gremlin Server. It would be important to configure
+TinkerGraph to persist that data or to manually persist it (e.g. write the graph data to Gryo) once changes are
+complete. Alternatively, use a persistent graph to hold the credentials and configure Gremlin Server accordingly.
+
+[[krb5authenticator]]
+===== Kerberos Authentication
+
+The `Krb5Authenticator` implements the "GSSAPI" SASL mechanism (i.e. Kerberos) to authenticate a request from a Gremlin
+client.  It can be applied in an existing Kerberos environment and validates whether a
+link:https://http://www.roguelynn.com/words/explain-like-im-5-kerberos/[valid authentication proof and service ticket are
+offered].
+
+[source,yaml]
+authentication: {
+  className: org.apache.tinkerpop.gremlin.server.auth.Krb5Authenticator,
+  config: {
+    principal: gremlinserver/hostname.your.org@YOUR.REALM,
+    keytab: /etc/security/keytabs/gremlinserver.service.keytab}}
+
+Krb5Authenticator needs a Kerberos service principal and a keytab that holds the secret key for that principal. The keytab
+location and service name, e.g. gremlinserver, are free to be chosen, but Gremlin clients have to specify this service name
+as the `protocol`. For Gremlin-Console the `protocol` is an entry in the remote.yaml file, for Gremlin-java the client builder
+has a `protocol()` method.
+
+In addition to the `protocol`, the Gremlin client needs to specify a `jaasEntry`, an entry in the
+link:https://en.wikipedia.org/wiki/Java_Authentication_and_Authorization_Service[JAAS] configuration file. Gremlin-Console
+comes with a sample gremlin-jaas.conf file with a `GremlinConsole` jaasEntry:
+
+[source, jaas]
+GremlinConsole {
+  com.sun.security.auth.module.Krb5LoginModule required
+  doNotPrompt=true
+  useTicketCache=true;
+};
+
+This configuration tells Gremlin-Console to pass authentication requests from gremlin-server to the Krb5LoginModule, which is
+part of the java standard library.  The Krb5LoginModule does not prompt the user for a username and password but uses the ticket cache that
+is normally refreshed when a user logs in to a host within the Kerberos realm.
+
+Finally, the Gremlin client needs the location of the JAAS configuration file to be passed as a system property to the JVM. For
+Gremlin-Console the easiest way to do this is to pass it to the run script via the JAVA_OPTIONS environment property:
+
+[source, bash]
+export JAVA_OPTIONS="$JAVA_OPTIONS -Djava.security.auth.login.config=conf/gremlin-jaas.conf"
+
+[[script-execution]]
+===== Protecting Script Execution
+
+It is important to remember that Gremlin Server exposes `GremlinScriptEngine` instances that allows for remote execution
 of arbitrary code on the server.  Obviously, this situation can represent a security risk or, more minimally, provide
 ways for "bad" scripts to be inadvertently executed. A simple example of a "valid" Gremlin script that would cause
 some problems would be, `while(true) {}`, which would consume a thread in the Gremlin pool indefinitely, thus
@@ -1399,78 +1541,71 @@ of safety. A Gremlin Server instance that is not secured appropriately provides 
 
 The previous sections discussed methods for securing Gremlin Server through authentication and encryption, which is a
 good first step in protection. Another layer of protection comes in the form of specific configurations for the
-`GremlinGroovyScriptEngine`.  A user can configure the script engine with different `CompilerCustomizerProvider`
-implementations.  Consider the basic configuration from the Gremlin Server YAML file:
+`GremlinGroovyScriptEngine`.  A user can configure the script engine with a `GroovyCompilerGremlinPlugin`
+implementation. Consider the basic configuration from the Gremlin Server YAML file:
 
 [source,yaml]
+----
 scriptEngines: {
   gremlin-groovy: {
-    imports: [java.lang.Math],
-    staticImports: [java.lang.Math.PI],
-    scripts: [scripts/empty-sample.groovy]}}
+    plugins: { org.apache.tinkerpop.gremlin.server.jsr223.GremlinServerGremlinPlugin: {},
+               org.apache.tinkerpop.gremlin.tinkergraph.jsr223.TinkerGraphGremlinPlugin: {},
+               org.apache.tinkerpop.gremlin.jsr223.ImportGremlinPlugin: {classImports: [java.lang.Math], methodImports: [java.lang.Math#*]},
+               org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin: {files: [scripts/empty-sample.groovy]}}}}
+----
 
-This configuration can be extended to include a `config` key as follows:
+This configuration can be expanded to include a the `GroovyCompilerGremlinPlugin`:
 
 [source,yaml]
+----
 scriptEngines: {
   gremlin-groovy: {
-    imports: [java.lang.Math],
-    staticImports: [java.lang.Math.PI],
-    scripts: [scripts/empty-sample.groovy],
-    config: {
-      compilerCustomizerProviders: {
-        "org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.ThreadInterruptCustomizerProvider":[] }}}}
+    plugins: { org.apache.tinkerpop.gremlin.server.jsr223.GremlinServerGremlinPlugin: {},
+               org.apache.tinkerpop.gremlin.tinkergraph.jsr223.TinkerGraphGremlinPlugin: {}
+               org.apache.tinkerpop.gremlin.jsr223.ImportGremlinPlugin: {classImports: [java.lang.Math], methodImports: [java.lang.Math#*]},
+               org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin: {files: [scripts/empty-sample-secure.groovy]},
+               org.apache.tinkerpop.gremlin.groovy.jsr223.GroovyCompilerGremlinPlugin: {enableThreadInterrupt: true}}}}
+----
 
-This configuration sets up the script engine with a `CompilerCustomizerProvider` implementation.  The
-`ThreadInterruptCustomizerProvider` injects checks that ensure that loops (like `while`) respect thread interruption
-requests. Note that the empty square brackets following the declaration of the `ThreadInterruptCustomizerProvider`
-are for parameters - this particular `CustomizerProvider` takes no arguments to enable it. With this configuration in
-place and assuming the `scriptEvaluationTimeout` is set to `30000` milliseconds, consider the following remote
-execution:
+This configuration sets up the script engine with to ensure that loops (like `while`) will respect interrupt requests.
+With this configuration in place, a remote execution as follows, now times out rather than consuming the thread
+continuously:
 
 [source,groovy]
-----
 gremlin> :remote connect tinkerpop.server conf/remote.yaml
 ==>Configured localhost/127.0.0.1:8182
 gremlin> :> while(true) { }
-Script evaluation exceeded the configured 'scriptEvaluationTimeout' threshold of 30000 ms or evaluation was otherwise cancelled directly for request [while(true) { }]
-----
+==>Script evaluation exceeded the configured 'scriptEvaluationTimeout' threshold of 30000 ms or evaluation was otherwise cancelled directly for request [while(true) {}]
 
-There are a number of pre-packaged `CustomizerProvider` implementations:
+The `GroovyCompilerGremlinPlugin` has a number of configuration options:
 
 [width="100%",cols="3,10a",options="header"]
 |=========================================================
 |Customizer |Description
-|`CompileStaticCustomizerProvider` |Applies `CompileStatic` annotations to incoming scripts thus removing dynamic dispatch. More information about static compilation can be found in the link:http://docs.groovy-lang.org/latest/html/documentation/#_static_compilation[Groovy Documentation].  It is possible to configure this `CustomizerProvider` by specifying a comma separated list of link:http://docs.groovy-lang.org/latest/html/documentation/#Typecheckingextensions-Workingwithextensions[type checking extensions] that can have the effect of securing calls to various methods.
-|`CompilationOptionsCustomizerProvider` |The amount of time a script is allowed to compile before a warning message is sent to the logs.
-|`ConfigurationCustomizerProvider` |Allows configuration of the Groovy `CompilerConfiguration` object by taking a `Map` of key/value pairs where the "key" is a property to set on the `CompilerConfiguration`.
-|`ThreadInterruptCustomizerProvider` |Injects checks for thread interruption, thus allowing the thread to potentially respect calls to `Thread.interrupt()`
-|`TypeCheckedCustomizerProvider` |Similar to the above mentioned, `CompileStaticCustomizerProvider`, the `TypeCheckedCustomizerProvider` injects `TypeChecked` annotations to incoming scripts.  More information on the nature of this annotation can be found in the link:http://docs.groovy-lang.org/latest/html/documentation/#_the_code_typechecked_code_annotation[Groovy Documentation].  It too takes a comma separated list of link:http://docs.groovy-lang.org/latest/html/documentation/#Typecheckingextensions-Workingwithextensions[type checking extensions].
+|`compilation` |Allows for three configurations: `COMPILE_STATIC`, `TYPE_CHECKED` or `NONE` (default). When configured with `COMPILE_STATIC` or `TYPE_CHECKED` it applies `CompileStatic` or `TypeChecked` annotations (respectively) to incoming scripts thus removing dynamic dispatch. More information about static compilation can be found link:http://docs.groovy-lang.org/latest/html/documentation/#_static_compilation[here] and additional information on `TypeChecked` usage can be found link:http://docs.groovy-lang.org/latest/html/documentation/#_the_code_typechecked_code_annotation[here].
+|`compilerConfigurationOptions` |Allows configuration of the Groovy `CompilerConfiguration` object by taking a `Map` of key/value pairs where the "key" is a property to set on the `CompilerConfiguration`.
+|`enableThreadInterrupt` |Injects checks for thread interruption, thus allowing the script to potentially respect calls to `Thread.interrupt()`
+|`expectedCompilationTime` |The amount of time in milliseconds a script is allowed to compile before a warning message is sent to the logs.
+|`classMapCacheSpecification` |The cache specification for the `GremlinGroovyScriptEngine` class map cache - described in more detail in the <<gremlin-server-cache,Cache Management>> Section.
+|`extensions` | This setting is for use when `compilation` is configured with `COMPILE_STATIC` or `TYPE_CHECKED` and accepts a comma separated list of link:http://docs.groovy-lang.org/latest/html/documentation/#Typecheckingextensions-Workingwithextensions[type checking extensions] that can have the effect of securing calls to various methods.
 |=========================================================
+
+NOTE: Consult the latest link:http://docs.groovy-lang.org/latest/html/documentation/#_typing[Groovy Documentation]
+for information on the differences. It is important to understand the impact that these configuration will have on
+submitted scripts before enabling this feature.
 
 To provide some basic out-of-the-box protections against troublesome scripts, the following configuration can be used:
 
 [source,yaml]
+----
 scriptEngines: {
   gremlin-groovy: {
-    imports: [java.lang.Math],
-    staticImports: [java.lang.Math.PI],
-    scripts: [scripts/empty-sample.groovy],
-    config: {
-      compilerCustomizerProviders: {
-        "org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.ThreadInterruptCustomizerProvider":[],
-        "org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.CompilationOptionsCustomizerProvider":[8000],
-        "org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.CompileStaticCustomizerProvider":["org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.SimpleSandboxExtension"]}}}}
-
-NOTE: The above configuration could also use the `TypeCheckedCustomizerProvider` in place of the
-`CompileStaticCustomizerProvider`.  The differences between `TypeChecked` and `CompileStatic` are beyond the scope of
-this documentation.  Consult the latest link:http://docs.groovy-lang.org/latest/html/documentation/#_typing[Groovy Documentation]
-for information on the differences. It is important to understand the impact that these configuration will have on
-submitted scripts before enabling this feature.
-
-NOTE: The import of classes to the script engine is handled by the `ImportCustomizerProvider`.  As the concept of
-"imports" is a first-class citizen (i.e. has its own configuration options), it is not recommended that the
-`ImportCustomizerProvider` be used as a configuration option to `compilerCustomizerProviders`.
+    plugins: { org.apache.tinkerpop.gremlin.server.jsr223.GremlinServerGremlinPlugin: {},
+               org.apache.tinkerpop.gremlin.tinkergraph.jsr223.TinkerGraphGremlinPlugin: {}
+               org.apache.tinkerpop.gremlin.groovy.jsr223.GroovyCompilerGremlinPlugin: {enableThreadInterrupt: true, compilation: COMPILE_STATIC, extensions: org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.SimpleSandboxExtension},
+               org.apache.tinkerpop.gremlin.jsr223.ImportGremlinPlugin: {classImports: [java.lang.Math], methodImports: [java.lang.Math#*]},
+               org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin: {files: [scripts/empty-sample-secure.groovy]}}}}
+----
 
 This configuration uses the `SimpleSandboxExtension`, which blacklists calls to methods on the `System` class,
 thereby preventing someone from remotely killing the server:
@@ -1552,8 +1687,8 @@ The `FileSandboxExtension` provides for a basic configurable security function i
 sandboxing implementations can be developed by using this white listing model and extending from the
 `AbstractSandboxExtension`.
 
-A final thought on the topic of `CompilerCustomizerProvider` implementations is that they are not just for
-"security" (though they are demonstrated in that capacity here).  They can be used for a variety of features that
+A final thought on the topic of `GroovyCompilerGremlinPlugin` implementation is that it is not just for
+"security" (though is is demonstrated in that capacity here).  It can be used for a variety of features that
 can fine tune the Groovy compilation process.  Read more about compilation customization in the
 link:http://docs.groovy-lang.org/latest/html/documentation/#compilation-customizers[Groovy Documentation].
 
@@ -1637,6 +1772,7 @@ important to use cases where server types need to be coerced to client types (i.
 but not on the client).  Implementations should typically instantiate `ClassResolver` implementations that are
 extensions of the `GryoClassResolver` as this class is important to most serialization tasks in TinkerPop.
 
+[[metrics]]
 ==== Metrics
 
 Gremlin Server produces metrics about its operations that can yield some insight into how it is performing. These
@@ -1650,6 +1786,19 @@ metrics are exposed in a variety of ways:
 * link:https://en.wikipedia.org/wiki/Java_Management_Extensions[JMX]
 
 The configuration of each of these outputs is described in the Gremlin Server <<_configuring_2, Configuring>> section.
+Note that Graphite and Ganglia are not included as part of the Gremlin Server distribution and must be installed
+to the server manually.
+
+[source,text]
+----
+bin/gremlin-server.sh install com.codahale.metrics metrics-ganglia 3.0.2
+bin/gremlin-server.sh install com.codahale.metrics metrics-graphite 3.0.2
+----
+
+WARNING: Gremlin Server is built to work with Metrics 3.0.2. Usage of other versions may lead to unexpected problems.
+
+NOTE: Installing Ganglia will include `org.acplt:oncrpc`, which is an LGPL licensed dependency.
+
 Regardless of the output, the metrics gathered are the same. Each metric is prefixed with
 `org.apache.tinkerpop.gremlin.server.GremlinServer` and the following metrics are reported:
 
@@ -1667,6 +1816,59 @@ session-based requests where "engine-name" will be the actual name of the engine
 * `engine-name.sessionless.*` - metrics related to different `GremlinScriptEngine` instances configured for sessionless
 requests where "engine-name" will be the actual name of the engine, such as "gremlin-groovy".
 
+==== As A Service
+
+Gremlin server can be configured to run as a service.
+
+===== Init.d (SysV)
+
+Link `bin/gremlin-server.sh` to `init.d`
+Be sure to set RUNAS to the service user in `bin/gremlin-server.conf`
+
+[source,bash]
+----
+# Install
+ln -s /path/to/apache-tinkerpop-gremlin-server-x.y.z/bin/gremlin-server.sh /etc/init.d/gremlin-server
+
+# Systems with chkconfig/service. E.g. Fedora, Red Hat
+chkconfig --add gremlin-server
+
+# Start
+service gremlin-server start
+
+# Or call directly
+/etc/init.d/gremlin-server restart
+
+----
+
+===== Systemd
+
+To install, copy the service template below to /etc/systemd/system/gremlin.service
+and update the paths `/path/to/apache-tinkerpop-gremlin-server` with the actual install path of Gremlin Server.
+
+[source,bash]
+----
+[Unit]
+Description=Apache TinkerPop Gremlin Server daemon
+Documentation=http://tinkerpop.apache.org/
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/path/to/apache-tinkerpop-gremlin-server/bin/gremlin-server.sh start
+ExecStop=/path/to/apache-tinkerpop-gremlin-server/bin/gremlin-server.sh stop
+PIDFile=/path/to/apache-tinkerpop-gremlin-server/run/gremlin.pid
+
+[Install]
+WantedBy=multi-user.target
+----
+
+
+Enable the service with `systemctl enable gremlin-server`
+
+Start the service with `systemctl start gremlin-server`
+
+
 === Best Practices
 
 The following sections define best practices for working with Gremlin Server.
@@ -1676,7 +1878,7 @@ The following sections define best practices for working with Gremlin Server.
 image:gremlin-handdrawn.png[width=120,float=right] Tuning Gremlin Server for a particular environment may require some simple trial-and-error, but the following represent some basic guidelines that might be useful:
 
 * Gremlin Server defaults to a very modest maximum heap size.  Consider increasing this value for non-trivial uses.
-Maximum heap size (`-Xmx`) is defined with the `JAVA_OPTIONS` setting in `gremlin-server.sh`.
+Maximum heap size (`-Xmx`) is defined with the `JAVA_OPTIONS` setting in `gremlin-server.conf`.
 * When configuring the size of `threadPoolWorker` start with the default of `1` and increment by one as needed to a
 maximum of `2*number of cores`.
 * The "right" size of the `gremlinPool` setting is somewhat dependent on the type of scripts that will be processed
@@ -1775,9 +1977,7 @@ ResultSet results = client.submit("g.V().hasLabel('person')");
 
 // no properties returned from g.V().hasLabel("person") because this is using
 // Bytecode API with reference detachment
-Graph graph = EmptyGraph.instance();
-GraphTraversalSource g = graph.traversal().
-                               withRemote('conf/remote-graph.properties');
+GraphTraversalSource g = traversal().withRemote('conf/remote-graph.properties');
 List<Vertex> results = g.V().hasLabel("person").toList();
 ----
 
@@ -1789,14 +1989,13 @@ Cluster cluster = Cluster.open();
 Client client = cluster.connect();
 ResultSet results = client.submit("g.V().hasLabel('person').valueMap(true,'name')");
 
-Graph graph = EmptyGraph.instance();
-GraphTraversalSource g = graph.traversal().
-                               withRemote('conf/remote-graph.properties');
+GraphTraversalSource g = traversal().withRemote('conf/remote-graph.properties');
 List<Vertex> results = g.V().hasLabel("person").valueMap(true,'name').toList();
 ----
 
 Both of the above requests return a list of `Map` instances that contain the `id`, `label` and the "name" property.
 
+[[gremlin-server-cache]]
 ==== Cache Management
 
 If Gremlin Server processes a large number of unique scripts, the global function cache will grow beyond the memory
@@ -1827,6 +2026,25 @@ params.put("x",4);
 params.put("#jsr223.groovy.engine.keep.globals", "soft");
 client.submit("[1,2,3,x]", params);
 ----
+
+Gremlin Server also has a "class map" cache which holds compiled scripts which helps avoid recompilation costs on
+future requests. This cache can be tuned in the Gremlin Server configuration with the `GroovyCompilerGremlinPlugin`
+in the following fashion:
+
+[source,yaml]
+----
+scriptEngines: {
+  gremlin-groovy: {
+    plugins: { ...
+               org.apache.tinkerpop.gremlin.groovy.jsr223.GroovyCompilerGremlinPlugin: {classMapCacheSpecification: "initialCapacity=1000,maximumSize=10000"},
+               ...}
+----
+
+The specifics for this comma delimited format can be found
+link:https://static.javadoc.io/com.github.ben-manes.caffeine/caffeine/2.6.2/com/github/benmanes/caffeine/cache/CaffeineSpec.html[here].
+By default, the cache is set to `softValues` which means they are garbage collected in a globally least-recently-used
+manner as memory gets low. For production systems, it is likely that a more predictable strategy be taken as shown
+above with the use of the `maximumSize`.
 
 [[sessions]]
 ==== Considering Sessions
@@ -1924,7 +2142,7 @@ will simply have Gremlin Server close transactions on all graphs for every reque
 [[considering-state]]
 ==== Considering State
 
-With REST and any sessionless requests, there is no variable state maintained between requests.  Therefore,
+With HTTP and any sessionless requests, there is no variable state maintained between requests.  Therefore,
 when <<connecting-via-console,connecting with the console>>, for example, it is not possible to create a variable in
 one command and then expect to access it in the next:
 
@@ -1939,8 +2157,8 @@ No such property: x for class: Script4
 Display stack trace? [yN] n
 ----
 
-The same behavior would be seen with REST or when using sessionless requests through one of the Gremlin Server drivers.
-If having this behavior is desirable, then <<sessions,consider sessions>>.
+The same behavior would be seen with HTTP or when using sessionless requests through one of the Gremlin Server drivers.
+If having this behavior is desireable, then <<sessions,consider sessions>>.
 
 There is an exception to this notion of state not existing between requests and that is globally defined functions.
 All functions created via scripts are global to the server.
@@ -1978,7 +2196,7 @@ $ curl -X POST -d "{\"gremlin\":\"divideIt(8, 2)\"}" "http://localhost:8182"
 {"message":"Error encountered evaluating script: divideIt(8, 2)"}
 ----
 
-In the above REST-based requests, the bindings contain a special parameter that tells the `ScriptEngine` cache to
+In the above HTTP-based requests, the bindings contain a special parameter that tells the `ScriptEngine` cache to
 immediately forget the script after execution. In this way, the function does not end up being globally available.
 
 [[gremlin-server-docker-image]]
@@ -2155,14 +2373,84 @@ Gephi plugin configuration parameters as accepted via the `:remote config` comma
 |visualTraversal |Creates a `TraversalSource` variable in the Console named `vg` which can be used for visualizing traversals. This configuration option takes two parameters.  The first is required and is the name of the `Graph` instance variable that will generate the `TraversalSource`.  The second parameter is the variable name that the `TraversalSource` should have when referenced in the Console.  If left unspecified, this value defaults to `vg`. |vg
 |=========================================================
 
+NOTE: This plugin is typically only useful to the Gremlin Console and is enabled in the there by default.
+
+The instructions above assume that the `Graph` instance being visualized is local to the Gremlin Console. It makes that
+assumption because the Gephi plugin requires a locally held `Graph`. If the intent is to visualize a `Graph` instance
+hosted in Gremlin Server or a TinkerPop-enabled graph that can only be connected to in a "remote" fashion, then it
+is still possible to use the Gephi plugin, but the requirement for a locally held `Graph` remains the same. To use
+the Gephi plugin in these situations simply use <<subgraph-step,subgraph()-step>> to extract the portion of the remote
+graph that will be visualized. Use of that step will return a `TinkerGraph` instance to the Gremlin Console at which
+point it can be used locally with the Gephi plugin. The following example demonstrates the general steps:
+
+[source,text]
+----
+gremlin> :remote connect tinkerpop.server conf/remote-objects.yaml <1>
+...
+gremlin> :> g.E().hasLabel('knows').subgraph('subGraph').cap('subGraph') <2>
+...
+gremlin> graph = result[0].object <3>
+...
+----
+
+<1> Be sure to connect with a serializer configured to return objects and not their `toString()` representation which
+is discussed in more detail in the <<connecting-via-console, Connecting Via Console>> Section.
+<2> Use the `:>` command to subgraph the remote graph as needed.
+<3> The `TinkerGraph` of that previous traversal can be found in the `result` object and now that the `Graph` is local
+to Gremlin Console it can be used with Gephi as shown in the prior instruction set.
+
+[[giraph-plugin]]
+=== Giraph Plugin
+
+image:giraph-logo.png[width=50,float=left]  The Giraph Plugin installs as part of `giraph-gremlin` and provides
+a number of imports and utility functions to the environment within which it is used. Those classes and functions
+provide the basis for supporting <<graphcomputer,OLAP based traversals>> using link:http://giraph.apache.org[Giraph].
+This plugin is defined in greater detail in the <<giraphgraphcomputer,GiraphGraphComputer>> section and is typically
+installed in conjuction with the <<hadoop-plugin,Hadoop-Plugin>>.
+
+[[graph-plugins]]
+=== Graph Plugins
+
+This section does not refer to a specific Gremlin Plugin, but a class of them. Graph Plugins are typically created by
+graph providers to make it easy to integrate their graph systems into Gremlin Console and Gremlin Server. As TinkerPop
+provides two reference `Graph` implementations in <<tinkergraph-gremlin,TinkerGraph>> and <<neo4j-gremlin,Neo4j>>,
+there is also one Gremlin Plugin for each of them.
+
+The TinkerGraph plugin is installed and activated in the Gremlin Console by default and the sample configurations that
+are supplied with the Gremlin Server distribution include the `TinkerGraphGremlinPlugin` as part of the default setup.
+If using Neo4j, however, the plugin must be installed manually. Instructions for doing so can be found in the
+<<neo4j-gremlin,Neo4j>> section.
+
+[[hadoop-plugin]]
+=== Hadoop Plugin
+
+image:hadoop-logo-notext.png[width=100,float=left] The Hadoop Plugin installs as part of `hadoop-gremlin` and provides
+a number of imports and utility functions to the environment within which it is used. Those classes and functions
+provide the basis for supporting <<graphcomputer,OLAP based traversals>> with Gremlin. This plugin is defined in
+greater detail in the <<hadoop-gremlin,Hadoop-Gremlin>> section.
+
 [[server-plugin]]
 === Server Plugin
 
 image:gremlin-server.png[width=200,float=left] xref:gremlin-server[Gremlin Server] remotely executes Gremlin scripts
 that are submitted to it.  The Server Plugin provides a way to submit scripts to Gremlin Server for remote
-processing.  Read more about the plugin and how it works in the Gremlin Server section on xref:connecting-via-console[Connecting via Console].
+processing.  Read more about the plugin and how it works in the Gremlin Server section on
+<<connecting-via-console,Connecting via Console>>.
 
-NOTE: The Server Plugin is enabled in the Gremlin Console by default.
+NOTE: This plugin is typically only useful to the Gremlin Console and is enabled in the there by default.
+
+The Server Plugin for remoting with the Gremlin Console should not be confused with a plugin of similar name that is
+used by the server. `GremlinServerGremlinPlugin` is typically only configured in Gremlin Server and provides a number
+of imports that are required for writing <<starting-gremlin-server,initialization scripts>>.
+
+[[spark-plugin]]
+=== Spark Plugin
+
+image:spark-logo.png[width=175,float=left] The Spark Plugin installs as part of `spark-gremlin` and provides
+a number of imports and utility functions to the environment within which it is used. Those classes and functions
+provide the basis for supporting <<graphcomputer,OLAP based traversals>> using link:http://spark.apache.org[Spark].
+This plugin is defined in greater detail in the <<sparkgraphcomputer,SparkGraphComputer>> section and is typically
+installed in conjuction with the <<hadoop-plugin,Hadoop-Plugin>>.
 
 [[sugar-plugin]]
 === Sugar Plugin

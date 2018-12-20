@@ -101,12 +101,8 @@ public abstract class AbstractTransaction implements Transaction {
     @Override
     public void commit() {
         readWrite();
-        try {
-            doCommit();
-            fireOnCommit();
-        } catch (TransactionException te) {
-            throw new RuntimeException(te);
-        }
+        doCommit();
+        fireOnCommit();
     }
 
     /**
@@ -115,23 +111,10 @@ public abstract class AbstractTransaction implements Transaction {
     @Override
     public void rollback() {
         readWrite();
-        try {
-            doRollback();
-            fireOnRollback();
-        } catch (TransactionException te) {
-            throw new RuntimeException(te);
-        }
+        doRollback();
+        fireOnRollback();
     }
 
-    /**
-     * {@inheritDoc}
-     * @deprecated As of release 3.2.6, not replaced.
-     */
-    @Override
-    @Deprecated
-    public <R> Workload<R> submit(final Function<Graph, R> work) {
-        return new Workload<>(g, work);
-    }
     /**
      * {@inheritDoc}
      */
@@ -154,23 +137,5 @@ public abstract class AbstractTransaction implements Transaction {
     @Override
     public void close() {
         doClose();
-    }
-
-    /**
-     * An "internal" exception thrown by providers when calls to {@link AbstractTransaction#doCommit} or
-     * {@link AbstractTransaction#doRollback} fail.
-     */
-    public static class TransactionException extends Exception {
-        public TransactionException(final String message) {
-            super(message);
-        }
-
-        public TransactionException(final Throwable cause) {
-            super(cause);
-        }
-
-        public TransactionException(final String message, final Throwable cause) {
-            super(message, cause);
-        }
     }
 }
